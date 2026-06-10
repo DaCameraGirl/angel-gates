@@ -97,6 +97,15 @@ class EdgeRuntimeTest(unittest.TestCase):
     def future_time(self, hours: int = 24) -> str:
         return (datetime.now(UTC) + timedelta(hours=hours)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
+    def latest_anchor_and_event(self):
+        anchor = self.connection.execute(
+            "SELECT * FROM event_anchors ORDER BY sequence DESC, anchored_at DESC LIMIT 1"
+        ).fetchone()
+        self.assertIsNotNone(anchor)
+        event = self.connection.execute("SELECT * FROM events WHERE sequence = ?", (anchor["sequence"],)).fetchone()
+        self.assertIsNotNone(event)
+        return anchor, event
+
     def test_pin_authorization_revocation_and_hash_chain(self) -> None:
         add_credential(
             self.connection,
@@ -130,6 +139,74 @@ class EdgeRuntimeTest(unittest.TestCase):
         verification = verify_event_log(self.connection)
         self.assertTrue(verification["ok"])
         self.assertGreaterEqual(verification["checked"], 5)
+
+    def test_credential_revocation_creates_contextual_local_anchor(self) -> None:
+        source_created_at = "2026-01-02T03:04:05Z"
+        add_credential(
+            self.connection,
+            credential_id="cred-pin-revoke-anchor",
+            principal_id="unit-102",
+            principal_label="Unit 102",
+            principal_type="resident",
+            credential_type="pin",
+            credential_value="102102",
+            gate_scope=["front"],
+        )
+
+        revoke_credential(
+            self.connection,
+            credential_id="cred-pin-revoke-anchor",
+            reason="move_out",
+            source_created_at=source_created_at,
+        )
+
+        anchor, event = self.latest_anchor_and_event()
+        self.assertEqual("revocation_local", anchor["anchor_type"])
+        self.assertEqual(event["event_hash"], anchor["event_hash"])
+        self.assertEqual("revocation", event["event_type"])
+        self.assertEqual("move_out", event["reason"])
+        self.assertEqual("cred-pin-revoke-anchor", event["credential_id"])
+        self.assertEqual("pin", event["credential_type"])
+        self.assertEqual(
+            {
+                "target": "credential",
+                "credential_id": "cred-pin-revoke-anchor",
+                "credential_type": "pin",
+                "reason": "move_out",
+                "source_created_at": source_created_at,
+            },
+            json.loads(anchor["extra_json"])["revocation"],
+        )
+        self.assertTrue(verify_event_log(self.connection)["ok"])
+
+    def test_qr_token_revocation_creates_contextual_local_anchor(self) -> None:
+        source_created_at = "2026-01-02T03:04:05Z"
+
+        revoke_qr_token(
+            self.connection,
+            token_id="visitor-pass-revoke-anchor",
+            reason="visitor_cancelled",
+            source_created_at=source_created_at,
+        )
+
+        anchor, event = self.latest_anchor_and_event()
+        self.assertEqual("revocation_local", anchor["anchor_type"])
+        self.assertEqual(event["event_hash"], anchor["event_hash"])
+        self.assertEqual("revocation", event["event_type"])
+        self.assertEqual("visitor_cancelled", event["reason"])
+        self.assertEqual("visitor-pass-revoke-anchor", event["credential_id"])
+        self.assertEqual("qr", event["credential_type"])
+        self.assertEqual(
+            {
+                "target": "qr_token",
+                "token_id": "visitor-pass-revoke-anchor",
+                "credential_type": "qr",
+                "reason": "visitor_cancelled",
+                "source_created_at": source_created_at,
+            },
+            json.loads(anchor["extra_json"])["revocation"],
+        )
+        self.assertTrue(verify_event_log(self.connection)["ok"])
 
     def test_relay_controller_records_pulse_and_suppresses_duplicate(self) -> None:
         add_gate(

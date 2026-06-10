@@ -590,6 +590,12 @@ def revoke_credential(
 ) -> None:
     begin_write(connection)
     now = utc_now()
+    credential = connection.execute(
+        "SELECT credential_type FROM credentials WHERE id = ?",
+        (credential_id,),
+    ).fetchone()
+    if credential is None:
+        raise EdgeError("credential_not_found")
     cursor = connection.execute(
         """
         UPDATE credentials
@@ -606,9 +612,22 @@ def revoke_credential(
         event_type="revocation",
         reason=reason,
         credential_id=credential_id,
+        credential_type=credential["credential_type"],
         extra={"source_created_at": source_created_at},
     )
-    create_event_anchor(connection, anchor_type="revocation_local")
+    create_event_anchor(
+        connection,
+        anchor_type="revocation_local",
+        extra={
+            "revocation": {
+                "target": "credential",
+                "credential_id": credential_id,
+                "credential_type": credential["credential_type"],
+                "reason": reason,
+                "source_created_at": source_created_at,
+            }
+        },
+    )
     connection.commit()
 
 
@@ -658,7 +677,19 @@ def revoke_qr_token(
         credential_type="qr",
         extra={"source_created_at": source_created_at},
     )
-    create_event_anchor(connection, anchor_type="revocation_local")
+    create_event_anchor(
+        connection,
+        anchor_type="revocation_local",
+        extra={
+            "revocation": {
+                "target": "qr_token",
+                "token_id": token_id,
+                "credential_type": "qr",
+                "reason": reason,
+                "source_created_at": source_created_at,
+            }
+        },
+    )
     connection.commit()
 
 
