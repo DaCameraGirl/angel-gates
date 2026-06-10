@@ -22,6 +22,7 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - SD-card-loss rebind: cloud registry helpers supersede the old binding, preserve history reference, and mint a new binding artifact for the replacement device identity.
 - LPR pilot plan: rear-plate-aware geometry, shadow-mode metrics, confidence fallback, and privacy/retention boundaries are documented for phase two.
 - Chargeback incident export: gate/time-window reports can export integrity JSON, manager CSV, and printable Markdown from real edge events with linked camera/relay evidence.
+- OEM cloud evaluation plan: later integration triggers, disqualifiers, due diligence, and adapter boundaries are documented without changing the retrofit-first compatibility story.
 
 ## Next
 
@@ -34,4 +35,4 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - Multi-tenant SaaS cloud: add property tenants, user roles, billing, support tools, and cloud-side anchor storage.
 - Intercom/video call: only after the access/audit product is working, because multifamily video workflows are a different competitive set.
 - Installer mobile app: defer until the dashboard role-gated commissioning page proves the workflow.
-- OEM cloud integrations: myQ Community, DKS, and other OEM APIs are upgrades, not the v1 compatibility path.
+- OEM cloud adapters: build only after a property-authorized request and official partner path prove they reduce manager work without replacing local authorization.

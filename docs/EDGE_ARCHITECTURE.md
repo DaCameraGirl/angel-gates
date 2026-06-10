@@ -126,6 +126,8 @@ Dry contact and Wiegand-compatible handoff cover the long tail of installed gate
 
 Brand-specific cloud integrations are later upgrades, not the core compatibility story.
 
+See `docs/OEM_INTEGRATIONS.md` for the later evaluation checklist and adapter boundaries.
+
 ## Beachhead
 
 Start with self-storage, small HOAs, and private roads.

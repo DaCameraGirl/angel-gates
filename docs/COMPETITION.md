@@ -115,6 +115,8 @@ Where Angel Gates should differ:
 
 OEMs are ecosystem anchors, not just competitors. The safest sales posture is to complement the operator, not challenge it.
 
+The later evaluation path is tracked in `docs/OEM_INTEGRATIONS.md`. It keeps OEM APIs as adapters over the edge/event-log product, not prerequisites for compatibility.
+
 ### Local Gate Installers
 
 Local gate and access-control installers are the most important non-software competitor and the most important channel.
