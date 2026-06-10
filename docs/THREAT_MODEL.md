@@ -99,6 +99,6 @@ Current answer: local API requires scoped bearer tokens even on localhost.
 
 Risk: a software or wiring bug holds the gate open.
 
-Current answer: relay control is split into a local relay service that owns GPIO and accepts only momentary pulse requests from the authorization service. The GPIO driver initializes active-high outputs off, pulses for a bounded duration, and turns off in a `finally` block. The runtime has no hold-open command. Duplicate allow bursts are suppressed by per-gate/channel cooldown. Actual pulses and cooldown suppressions write `relay` events into the hash-chained log.
+Current answer: relay control is split into a local relay service that owns GPIO and accepts only momentary pulse requests from the authorization service. The GPIO driver initializes active-high outputs off, pulses for a bounded duration, and turns off in a `finally` block. The runtime has no hold-open command. Duplicate allow bursts are suppressed by per-gate/channel cooldown. Actual pulses and cooldown suppressions write `relay` events into the hash-chained log. The pilot acceptance runner records the expected relay click count so the installer can confirm only allow cases click during live hardware testing.
 
 Gap: Pi acceptance testing must verify the selected relay HAT is active-high, normally-open, de-energized by default, and audibly clicks only on allow cases.

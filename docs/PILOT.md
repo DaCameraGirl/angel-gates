@@ -60,3 +60,18 @@ This is the working plan for a first live property pilot. Details here are field
 - Binding revocation stops authorization.
 - Verify-log passes after the pilot test battery.
 - Factory reset returns edge to unclaimed state.
+
+Run the live edge service acceptance battery from a laptop on the property LAN or from the Pi:
+
+```bash
+python -m edge.angel_edge pilot-acceptance \
+  --edge-url http://EDGE_HOST:8765 \
+  --edge-token "$ANGEL_INSTALLER_TOKEN" \
+  --gate-id front \
+  --relay-channel 26 \
+  --observed-relay-clicks 3
+```
+
+The runner provisions isolated test credentials through `/sync/delta`, then checks PIN, QR, plate, revoked QR, expired QR, low-confidence plate, bad bearer, `/events`, `/events/stream`, `/anchors/head`, and `/verify-log`.
+
+The optional `--include-binding-revocation` check is destructive because it revokes local API tokens on the target edge. Use it only on a disposable acceptance image or after confirming reset access.

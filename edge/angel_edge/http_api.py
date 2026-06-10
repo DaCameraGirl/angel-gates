@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
+from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -13,7 +15,7 @@ from .drivers.relay import dispatch_relay_pulse_async
 from . import store
 
 
-def run_server(
+def build_server(
     db_path: str,
     host: str,
     port: int,
@@ -39,20 +41,25 @@ def run_server(
 
             query = parse_qs(parsed.query)
             if parsed.path == "/health":
-                with store.connect(db_path) as connection:
+                with closing(store.connect(db_path)) as connection:
                     store.migrate(connection)
                     self.send_json(200, store.sync_status(connection))
                 return
             if parsed.path == "/events":
                 limit = bounded_int(query.get("limit", ["50"])[0], default=50, minimum=1, maximum=250)
                 after_sequence = bounded_int(query.get("after_sequence", ["0"])[0], default=0, minimum=0, maximum=10**12)
-                with store.connect(db_path) as connection:
+                with closing(store.connect(db_path)) as connection:
                     store.migrate(connection)
                     if after_sequence:
                         events = store.list_events_after(connection, sequence=after_sequence, limit=limit)
                     else:
                         events = store.list_events(connection, limit=limit)
                     self.send_json(200, {"events": events, "head": store.current_head(connection)})
+                return
+            if parsed.path == "/verify-log":
+                with closing(store.connect(db_path)) as connection:
+                    store.migrate(connection)
+                    self.send_json(200, store.verify_event_log(connection))
                 return
             if parsed.path == "/events/stream":
                 after_sequence = bounded_int(query.get("after_sequence", ["0"])[0], default=0, minimum=0, maximum=10**12)
@@ -71,7 +78,7 @@ def run_server(
 
             if parsed.path == "/authorize":
                 payload = self.read_json()
-                with store.connect(db_path) as connection:
+                with closing(store.connect(db_path)) as connection:
                     store.migrate(connection)
                     result = store.authorize(
                         connection,
@@ -96,14 +103,14 @@ def run_server(
                 return
             if parsed.path == "/sync/delta":
                 payload = self.read_json()
-                with store.connect(db_path) as connection:
+                with closing(store.connect(db_path)) as connection:
                     store.migrate(connection)
                     applied = store.apply_delta(connection, payload)
                 self.send_json(200, {"applied": applied})
                 return
             if parsed.path == "/anchors/head":
                 payload = self.read_json()
-                with store.connect(db_path) as connection:
+                with closing(store.connect(db_path)) as connection:
                     store.migrate(connection)
                     anchor = store.create_event_anchor(
                         connection,
@@ -122,7 +129,7 @@ def run_server(
             token = header.removeprefix("Bearer ").strip()
             if not token:
                 return False
-            with store.connect(db_path) as connection:
+            with closing(store.connect(db_path)) as connection:
                 store.migrate(connection)
                 return store.validate_api_token(connection, token, allowed_scopes=allowed_scopes) is not None
 
@@ -137,14 +144,23 @@ def run_server(
             last_sequence = after_sequence
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
-                with store.connect(db_path) as connection:
-                    store.migrate(connection)
-                    events = store.list_events_after(connection, sequence=last_sequence, limit=100)
+                try:
+                    with closing(store.connect(db_path)) as connection:
+                        store.migrate(connection)
+                        events = store.list_events_after(connection, sequence=last_sequence, limit=100)
+                except (OSError, sqlite3.Error):
+                    return
                 for event in events:
                     last_sequence = max(last_sequence, int(event["sequence"]))
-                    self.write_sse("event", event)
+                    try:
+                        self.write_sse("event", event)
+                    except OSError:
+                        return
                 if not events:
-                    self.write_sse("heartbeat", {"after_sequence": last_sequence})
+                    try:
+                        self.write_sse("heartbeat", {"after_sequence": last_sequence})
+                    except OSError:
+                        return
                 time.sleep(1)
 
         def write_sse(self, event_name: str, payload: dict[str, Any]) -> None:
@@ -178,6 +194,28 @@ def run_server(
             self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
 
     httpd = ThreadingHTTPServer((host, port), Handler)
+    return httpd
+
+
+def run_server(
+    db_path: str,
+    host: str,
+    port: int,
+    *,
+    relay_url: str | None = None,
+    relay_token: str | None = None,
+    camera_url: str | None = None,
+    camera_token: str | None = None,
+) -> None:
+    httpd = build_server(
+        db_path,
+        host,
+        port,
+        relay_url=relay_url,
+        relay_token=relay_token,
+        camera_url=camera_url,
+        camera_token=camera_token,
+    )
     print(f"Angel Edge listening on http://{host}:{port}")
     httpd.serve_forever()
 
@@ -203,6 +241,6 @@ def scopes_for_post(path: str) -> set[str]:
 def scopes_for_get(path: str) -> set[str]:
     if path == "/health":
         return {"dashboard", "installer", "edge-api", "edge-sync", "anchor-publish"}
-    if path in {"/events", "/events/stream"}:
+    if path in {"/events", "/events/stream", "/verify-log"}:
         return {"dashboard", "installer"}
     return {"dashboard", "installer"}

@@ -267,6 +267,7 @@ Endpoints:
 - `GET /health`
 - `GET /events`
 - `GET /events/stream`
+- `GET /verify-log`
 - `POST /authorize`
 - `POST /sync/delta`
 - `POST /anchors/head`
@@ -284,6 +285,12 @@ python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 verify-log
 ```
 
 The verifier recalculates every hash from the beginning of the log and reports the first broken sequence if anything was modified.
+
+The same check is available over the local API for installer acceptance:
+
+```bash
+curl -H "Authorization: Bearer $ANGEL_INSTALLER_TOKEN" http://127.0.0.1:8765/verify-log
+```
 
 ## Anchor The Current Head
 
@@ -331,3 +338,20 @@ python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 publish-anchor \
 ```
 
 The witness store is append-only per edge. It accepts exact duplicate publishes, but rejects stale anchors, duplicate sequences with different hashes, and anchors that do not extend the previously witnessed sequence/hash.
+
+## Pilot Acceptance Runner
+
+Run the live acceptance battery against the actual edge HTTP service:
+
+```bash
+python -m edge.angel_edge pilot-acceptance \
+  --edge-url http://127.0.0.1:8765 \
+  --edge-token "$ANGEL_INSTALLER_TOKEN" \
+  --gate-id front \
+  --relay-channel 26 \
+  --observed-relay-clicks 3
+```
+
+The token must have `installer` or `*` scope because the runner applies a test sync delta, authorizes test credentials, reads events, anchors the head, and verifies the log. The runner expects three allow cases, so a hardware installer should hear exactly three relay clicks and none for deny cases.
+
+`--include-binding-revocation` is intentionally not part of the default run. It revokes local API tokens on the target edge and should be used only on a disposable acceptance image or when reset access is confirmed.

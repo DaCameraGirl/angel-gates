@@ -22,6 +22,7 @@ from .commissioning import (
 from .camera_service import run_camera_service
 from .crypto_tokens import generate_keypair, load_private_key, sign_token
 from .http_api import run_server
+from .pilot_acceptance import PilotAcceptanceError, run_pilot_acceptance
 from .relay_service import run_relay_service
 from .scanner import ScannerError, run_scanner_service
 from .store import (
@@ -194,6 +195,20 @@ def build_parser() -> argparse.ArgumentParser:
     publisher_parser.add_argument("--event-interval", type=int, default=100)
     publisher_parser.add_argument("--max-age-seconds", type=int, default=300)
 
+    acceptance_parser = subparsers.add_parser("pilot-acceptance", help="Run the live edge service pilot acceptance battery")
+    acceptance_parser.add_argument("--edge-url", default="http://127.0.0.1:8765")
+    acceptance_parser.add_argument("--edge-token", required=True)
+    acceptance_parser.add_argument("--gate-id", default="pilot-acceptance-gate")
+    acceptance_parser.add_argument("--relay-channel", type=int, default=0)
+    acceptance_parser.add_argument("--relay-pulse-ms", type=int, default=500)
+    acceptance_parser.add_argument("--relay-cooldown-ms", type=int, default=1500)
+    acceptance_parser.add_argument("--observed-relay-clicks", type=int)
+    acceptance_parser.add_argument(
+        "--include-binding-revocation",
+        action="store_true",
+        help="Destructive final check: revokes local API tokens on the target edge.",
+    )
+
     subparsers.add_parser("commissioning-payload", help="Print the unclaimed device commissioning payload")
 
     challenge_parser = subparsers.add_parser("sign-claim-challenge", help="Sign a cloud claim challenge with the device key")
@@ -308,6 +323,21 @@ def main(argv: list[str] | None = None) -> int:
             print_json(publisher.publish_once(force=args.force, reason=args.reason))
             return 0
 
+        if args.command == "pilot-acceptance":
+            print_json(
+                run_pilot_acceptance(
+                    edge_url=args.edge_url,
+                    token=args.edge_token,
+                    gate_id=args.gate_id,
+                    relay_channel=args.relay_channel,
+                    relay_pulse_ms=args.relay_pulse_ms,
+                    relay_cooldown_ms=args.relay_cooldown_ms,
+                    include_binding_revocation=args.include_binding_revocation,
+                    observed_relay_clicks=args.observed_relay_clicks,
+                )
+            )
+            return 0
+
         if args.command == "scanner-service":
             run_scanner_service(
                 edge_url=args.edge_url,
@@ -329,7 +359,16 @@ def main(argv: list[str] | None = None) -> int:
                 migrate(connection)
                 run_db_command(connection, args)
         return 0
-    except (EdgeError, ScannerError, AnchorPublishError, WitnessError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (
+        EdgeError,
+        ScannerError,
+        AnchorPublishError,
+        WitnessError,
+        PilotAcceptanceError,
+        ValueError,
+        KeyError,
+        json.JSONDecodeError,
+    ) as exc:
         print_json({"ok": False, "error": str(exc)}, stream=sys.stderr)
         return 1
 
