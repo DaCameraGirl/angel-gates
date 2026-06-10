@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 import time
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,10 @@ from typing import Any
 from .crypto_tokens import TokenError, verify_token
 
 ZERO_HASH = "0" * 64
+GENESIS_SEQUENCE = 1
+GENESIS_EVENT_ID = "evt_genesis_v1"
+GENESIS_OCCURRED_AT = "1970-01-01T00:00:00Z"
+GENESIS_REASON = "angel_gates_event_log_genesis_v1"
 DEFAULT_REVOCATION_TARGET_SECONDS = 30
 
 
@@ -41,7 +46,8 @@ def to_epoch(value: str) -> int:
 def normalize_credential(credential_type: str, value: str) -> str:
     raw = str(value or "").strip()
     if credential_type == "plate":
-        return "".join(raw.upper().split())
+        alphanumeric = "".join(character for character in raw.upper() if character.isalnum())
+        return alphanumeric.translate(str.maketrans({"O": "0", "I": "1"}))
     if credential_type == "pin":
         return "".join(raw.split())
     return raw
@@ -66,11 +72,18 @@ def canonical_json(data: dict[str, Any]) -> str:
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(str(db_path))
+    connection = sqlite3.connect(str(db_path), timeout=5.0)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 5000")
     connection.execute("PRAGMA journal_mode = WAL")
+    connection.execute("PRAGMA synchronous = NORMAL")
     return connection
+
+
+def begin_write(connection: sqlite3.Connection) -> None:
+    if not connection.in_transaction:
+        connection.execute("BEGIN IMMEDIATE")
 
 
 def migrate(connection: sqlite3.Connection, edge_id: str | None = None) -> None:
@@ -164,6 +177,20 @@ def migrate(connection: sqlite3.Connection, edge_id: str | None = None) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_events_sync ON events (queued_for_sync, synced_at);
         CREATE INDEX IF NOT EXISTS idx_events_gate_time ON events (gate_id, occurred_at);
+
+        CREATE TABLE IF NOT EXISTS event_anchors (
+          anchor_id TEXT PRIMARY KEY,
+          anchor_type TEXT NOT NULL,
+          sequence INTEGER NOT NULL,
+          event_hash TEXT NOT NULL,
+          anchored_at TEXT NOT NULL,
+          upstream_ref TEXT,
+          extra_json TEXT NOT NULL,
+          FOREIGN KEY(sequence) REFERENCES events(sequence)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_event_anchors_sequence
+          ON event_anchors (sequence DESC);
         """
     )
     set_metadata(connection, "schema_version", "1")
@@ -171,6 +198,7 @@ def migrate(connection: sqlite3.Connection, edge_id: str | None = None) -> None:
         set_metadata(connection, "edge_id", edge_id)
     if get_metadata(connection, "revocation_target_seconds") is None:
         set_metadata(connection, "revocation_target_seconds", str(DEFAULT_REVOCATION_TARGET_SECONDS))
+    ensure_genesis_event(connection)
     connection.commit()
 
 
@@ -183,6 +211,110 @@ def set_metadata(connection: sqlite3.Connection, key: str, value: str) -> None:
     connection.execute(
         "INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         (key, value),
+    )
+
+
+def build_event_payload(
+    *,
+    sequence: int,
+    event_id: str,
+    occurred_at: str,
+    event_type: str,
+    principal_id: str | None,
+    principal_label: str | None,
+    credential_id: str | None,
+    credential_type: str | None,
+    gate_id: str | None,
+    decision: str | None,
+    reason: str,
+    confidence: float | None,
+    fallback_required: bool,
+    request_json: str,
+    media_json: str,
+    extra_json: str,
+    previous_hash: str,
+) -> dict[str, Any]:
+    return {
+        "sequence": sequence,
+        "event_id": event_id,
+        "occurred_at": occurred_at,
+        "event_type": event_type,
+        "principal_id": principal_id,
+        "principal_label": principal_label,
+        "credential_id": credential_id,
+        "credential_type": credential_type,
+        "gate_id": gate_id,
+        "decision": decision,
+        "reason": reason,
+        "confidence": confidence,
+        "fallback_required": fallback_required,
+        "request_json": request_json,
+        "media_json": media_json,
+        "extra_json": extra_json,
+        "previous_hash": previous_hash,
+    }
+
+
+def hash_event_payload(previous_hash: str, payload: dict[str, Any]) -> str:
+    return hashlib.sha256(f"{previous_hash}.{canonical_json(payload)}".encode("utf-8")).hexdigest()
+
+
+def ensure_genesis_event(connection: sqlite3.Connection) -> None:
+    existing = connection.execute("SELECT COUNT(*) AS count FROM events").fetchone()["count"]
+    if existing:
+        return
+    request_json = canonical_json({})
+    media_json = canonical_json({})
+    extra_json = canonical_json({"schema_version": "1"})
+    payload = build_event_payload(
+        sequence=GENESIS_SEQUENCE,
+        event_id=GENESIS_EVENT_ID,
+        occurred_at=GENESIS_OCCURRED_AT,
+        event_type="genesis",
+        principal_id=None,
+        principal_label=None,
+        credential_id=None,
+        credential_type=None,
+        gate_id=None,
+        decision=None,
+        reason=GENESIS_REASON,
+        confidence=None,
+        fallback_required=False,
+        request_json=request_json,
+        media_json=media_json,
+        extra_json=extra_json,
+        previous_hash=ZERO_HASH,
+    )
+    event_hash = hash_event_payload(ZERO_HASH, payload)
+    connection.execute(
+        """
+        INSERT INTO events (
+          sequence, event_id, occurred_at, event_type, principal_id, principal_label,
+          credential_id, credential_type, gate_id, decision, reason, confidence,
+          fallback_required, request_json, media_json, extra_json,
+          previous_hash, event_hash, queued_for_sync
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        """,
+        (
+            GENESIS_SEQUENCE,
+            GENESIS_EVENT_ID,
+            GENESIS_OCCURRED_AT,
+            "genesis",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            GENESIS_REASON,
+            None,
+            0,
+            request_json,
+            media_json,
+            extra_json,
+            ZERO_HASH,
+            event_hash,
+        ),
     )
 
 
@@ -200,6 +332,7 @@ def add_gate(
 ) -> None:
     if not safety_acknowledged:
         raise EdgeError("safety_acknowledgement_required")
+    begin_write(connection)
     now = utc_now()
     connection.execute(
         """
@@ -260,6 +393,7 @@ def add_credential(
         raise EdgeError("credential_type_must_be_pin_or_plate")
     if not gate_scope:
         raise EdgeError("gate_scope_required")
+    begin_write(connection)
     now = utc_now()
     start = valid_from or now
     connection.execute(
@@ -325,6 +459,7 @@ def revoke_credential(
     reason: str,
     source_created_at: str | None = None,
 ) -> None:
+    begin_write(connection)
     now = utc_now()
     cursor = connection.execute(
         """
@@ -348,6 +483,7 @@ def revoke_credential(
 
 
 def add_qr_public_key(connection: sqlite3.Connection, *, key_id: str, public_key_pem: str) -> None:
+    begin_write(connection)
     now = utc_now()
     connection.execute(
         """
@@ -373,6 +509,7 @@ def revoke_qr_token(
     reason: str,
     source_created_at: str | None = None,
 ) -> None:
+    begin_write(connection)
     now = utc_now()
     connection.execute(
         """
@@ -404,6 +541,7 @@ def authorize(
     media: dict[str, Any] | None = None,
     request: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    begin_write(connection)
     if gate_exists(connection, gate_id) is False:
         return deny_and_log(
             connection,
@@ -580,19 +718,6 @@ def authorize_qr(
 
     payload = token.payload
     token_id = str(payload["token_id"])
-    if connection.execute("SELECT 1 FROM revoked_qr_tokens WHERE token_id = ?", (token_id,)).fetchone():
-        return deny_and_log(
-            connection,
-            credential_type="qr",
-            gate_id=gate_id,
-            reason="qr_token_revoked",
-            credential_id=token_id,
-            principal_id=str(payload["principal_id"]),
-            principal_label=str(payload["principal_label"]),
-            request=request,
-            media=media,
-            fallback_required=True,
-        )
     if not gate_allowed(payload["gate_scope"], gate_id):
         return deny_and_log(
             connection,
@@ -605,6 +730,19 @@ def authorize_qr(
             request=request,
             media=media,
             fallback_required=False,
+        )
+    if connection.execute("SELECT 1 FROM revoked_qr_tokens WHERE token_id = ?", (token_id,)).fetchone():
+        return deny_and_log(
+            connection,
+            credential_type="qr",
+            gate_id=gate_id,
+            reason="qr_token_revoked",
+            credential_id=token_id,
+            principal_id=str(payload["principal_id"]),
+            principal_label=str(payload["principal_label"]),
+            request=request,
+            media=media,
+            fallback_required=True,
         )
 
     max_uses = payload.get("max_uses")
@@ -693,42 +831,44 @@ def append_event(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     occurred_at = utc_now()
-    previous = connection.execute("SELECT event_hash FROM events ORDER BY sequence DESC LIMIT 1").fetchone()
+    previous = connection.execute("SELECT sequence, event_hash FROM events ORDER BY sequence DESC LIMIT 1").fetchone()
     previous_hash = previous["event_hash"] if previous else ZERO_HASH
     sequence_hint = connection.execute("SELECT COALESCE(MAX(sequence), 0) + 1 AS next_sequence FROM events").fetchone()["next_sequence"]
     event_id = f"evt_{int(time.time() * 1000)}_{sequence_hint}"
     request_json = canonical_json(request or {})
     media_json = canonical_json(media or {})
     extra_json = canonical_json(extra or {})
-    payload = {
-        "event_id": event_id,
-        "occurred_at": occurred_at,
-        "event_type": event_type,
-        "principal_id": principal_id,
-        "principal_label": principal_label,
-        "credential_id": credential_id,
-        "credential_type": credential_type,
-        "gate_id": gate_id,
-        "decision": decision,
-        "reason": reason,
-        "confidence": confidence,
-        "fallback_required": bool(fallback_required),
-        "request_json": request_json,
-        "media_json": media_json,
-        "extra_json": extra_json,
-        "previous_hash": previous_hash,
-    }
-    event_hash = hashlib.sha256(f"{previous_hash}.{canonical_json(payload)}".encode("utf-8")).hexdigest()
+    payload = build_event_payload(
+        sequence=sequence_hint,
+        event_id=event_id,
+        occurred_at=occurred_at,
+        event_type=event_type,
+        principal_id=principal_id,
+        principal_label=principal_label,
+        credential_id=credential_id,
+        credential_type=credential_type,
+        gate_id=gate_id,
+        decision=decision,
+        reason=reason,
+        confidence=confidence,
+        fallback_required=bool(fallback_required),
+        request_json=request_json,
+        media_json=media_json,
+        extra_json=extra_json,
+        previous_hash=previous_hash,
+    )
+    event_hash = hash_event_payload(previous_hash, payload)
     connection.execute(
         """
         INSERT INTO events (
-          event_id, occurred_at, event_type, principal_id, principal_label,
+          sequence, event_id, occurred_at, event_type, principal_id, principal_label,
           credential_id, credential_type, gate_id, decision, reason, confidence,
           fallback_required, request_json, media_json, extra_json,
           previous_hash, event_hash
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            sequence_hint,
             event_id,
             occurred_at,
             event_type,
@@ -748,32 +888,38 @@ def append_event(
             event_hash,
         ),
     )
-    return {"event_id": event_id, "event_hash": event_hash, "occurred_at": occurred_at}
+    return {"event_id": event_id, "event_hash": event_hash, "occurred_at": occurred_at, "sequence": sequence_hint}
 
 
 def verify_event_log(connection: sqlite3.Connection) -> dict[str, Any]:
     previous_hash = ZERO_HASH
     checked = 0
+    last_sequence = 0
     for row in connection.execute("SELECT * FROM events ORDER BY sequence ASC"):
-        payload = {
-            "event_id": row["event_id"],
-            "occurred_at": row["occurred_at"],
-            "event_type": row["event_type"],
-            "principal_id": row["principal_id"],
-            "principal_label": row["principal_label"],
-            "credential_id": row["credential_id"],
-            "credential_type": row["credential_type"],
-            "gate_id": row["gate_id"],
-            "decision": row["decision"],
-            "reason": row["reason"],
-            "confidence": row["confidence"],
-            "fallback_required": bool(row["fallback_required"]),
-            "request_json": row["request_json"],
-            "media_json": row["media_json"],
-            "extra_json": row["extra_json"],
-            "previous_hash": row["previous_hash"],
-        }
-        expected_hash = hashlib.sha256(f"{previous_hash}.{canonical_json(payload)}".encode("utf-8")).hexdigest()
+        if checked == 0:
+            genesis_error = validate_genesis_row(row)
+            if genesis_error:
+                return {"ok": False, "checked": checked, "failed_sequence": row["sequence"], "error": genesis_error}
+        payload = build_event_payload(
+            sequence=row["sequence"],
+            event_id=row["event_id"],
+            occurred_at=row["occurred_at"],
+            event_type=row["event_type"],
+            principal_id=row["principal_id"],
+            principal_label=row["principal_label"],
+            credential_id=row["credential_id"],
+            credential_type=row["credential_type"],
+            gate_id=row["gate_id"],
+            decision=row["decision"],
+            reason=row["reason"],
+            confidence=row["confidence"],
+            fallback_required=bool(row["fallback_required"]),
+            request_json=row["request_json"],
+            media_json=row["media_json"],
+            extra_json=row["extra_json"],
+            previous_hash=row["previous_hash"],
+        )
+        expected_hash = hash_event_payload(previous_hash, payload)
         if row["previous_hash"] != previous_hash or row["event_hash"] != expected_hash:
             return {
                 "ok": False,
@@ -785,8 +931,73 @@ def verify_event_log(connection: sqlite3.Connection) -> dict[str, Any]:
                 "actual_event_hash": row["event_hash"],
             }
         previous_hash = row["event_hash"]
+        last_sequence = row["sequence"]
         checked += 1
-    return {"ok": True, "checked": checked, "head_hash": previous_hash}
+
+    if checked == 0:
+        return {"ok": False, "checked": 0, "error": "missing_genesis_event"}
+
+    anchor_check = verify_latest_anchor(connection, last_sequence)
+    if not anchor_check["ok"]:
+        return {"ok": False, "checked": checked, **anchor_check}
+
+    return {"ok": True, "checked": checked, "head_hash": previous_hash, "head_sequence": last_sequence, **anchor_check}
+
+
+def validate_genesis_row(row: sqlite3.Row) -> str | None:
+    if row["sequence"] != GENESIS_SEQUENCE:
+        return "genesis_sequence_mismatch"
+    if row["event_id"] != GENESIS_EVENT_ID:
+        return "genesis_event_id_mismatch"
+    if row["occurred_at"] != GENESIS_OCCURRED_AT:
+        return "genesis_timestamp_mismatch"
+    if row["event_type"] != "genesis" or row["reason"] != GENESIS_REASON:
+        return "genesis_payload_mismatch"
+    if row["previous_hash"] != ZERO_HASH:
+        return "genesis_previous_hash_mismatch"
+    return None
+
+
+def verify_latest_anchor(connection: sqlite3.Connection, last_sequence: int) -> dict[str, Any]:
+    anchor = connection.execute(
+        "SELECT * FROM event_anchors ORDER BY sequence DESC, anchored_at DESC LIMIT 1"
+    ).fetchone()
+    if anchor is None:
+        return {"ok": True, "latest_anchor": None}
+    if int(anchor["sequence"]) > last_sequence:
+        return {
+            "ok": False,
+            "error": "event_log_truncated_below_latest_anchor",
+            "anchor_sequence": anchor["sequence"],
+            "head_sequence": last_sequence,
+        }
+    row = connection.execute("SELECT event_hash FROM events WHERE sequence = ?", (anchor["sequence"],)).fetchone()
+    if row is None:
+        return {
+            "ok": False,
+            "error": "anchored_event_missing",
+            "anchor_sequence": anchor["sequence"],
+            "anchor_hash": anchor["event_hash"],
+        }
+    if row["event_hash"] != anchor["event_hash"]:
+        return {
+            "ok": False,
+            "error": "anchor_hash_mismatch",
+            "anchor_sequence": anchor["sequence"],
+            "anchor_hash": anchor["event_hash"],
+            "actual_hash": row["event_hash"],
+        }
+    return {
+        "ok": True,
+        "latest_anchor": {
+            "anchor_id": anchor["anchor_id"],
+            "anchor_type": anchor["anchor_type"],
+            "sequence": anchor["sequence"],
+            "event_hash": anchor["event_hash"],
+            "anchored_at": anchor["anchored_at"],
+            "upstream_ref": anchor["upstream_ref"],
+        },
+    }
 
 
 def list_events(connection: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]]:
@@ -797,10 +1008,68 @@ def list_events(connection: sqlite3.Connection, limit: int = 50) -> list[dict[st
     return [dict(row) for row in rows]
 
 
+def list_events_after(connection: sqlite3.Connection, sequence: int, limit: int = 50) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        "SELECT * FROM events WHERE sequence > ? ORDER BY sequence ASC LIMIT ?",
+        (sequence, limit),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def current_head(connection: sqlite3.Connection) -> dict[str, Any]:
+    row = connection.execute(
+        "SELECT sequence, event_id, event_hash, occurred_at FROM events ORDER BY sequence DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        return {"sequence": 0, "event_id": None, "event_hash": ZERO_HASH, "occurred_at": None}
+    return dict(row)
+
+
+def create_event_anchor(
+    connection: sqlite3.Connection,
+    *,
+    anchor_type: str = "cloud_pending",
+    upstream_ref: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    begin_write(connection)
+    head = current_head(connection)
+    anchor_id = f"anchor_{uuid.uuid4()}"
+    anchored_at = utc_now()
+    connection.execute(
+        """
+        INSERT INTO event_anchors (
+          anchor_id, anchor_type, sequence, event_hash, anchored_at, upstream_ref, extra_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            anchor_id,
+            anchor_type,
+            head["sequence"],
+            head["event_hash"],
+            anchored_at,
+            upstream_ref,
+            canonical_json(extra or {}),
+        ),
+    )
+    connection.commit()
+    return {
+        "anchor_id": anchor_id,
+        "anchor_type": anchor_type,
+        "sequence": head["sequence"],
+        "event_id": head["event_id"],
+        "event_hash": head["event_hash"],
+        "anchored_at": anchored_at,
+        "upstream_ref": upstream_ref,
+    }
+
+
 def sync_status(connection: sqlite3.Connection) -> dict[str, Any]:
     unsynced = connection.execute("SELECT COUNT(*) AS count FROM events WHERE queued_for_sync = 1 AND synced_at IS NULL").fetchone()["count"]
     credentials = connection.execute("SELECT COUNT(*) AS count FROM credentials WHERE status = 'active'").fetchone()["count"]
     gates = connection.execute("SELECT COUNT(*) AS count FROM gates").fetchone()["count"]
+    head = current_head(connection)
+    latest_anchor = verify_latest_anchor(connection, int(head["sequence"]))
     return {
         "edge_id": get_metadata(connection, "edge_id"),
         "revocation_target_seconds": int(get_metadata(connection, "revocation_target_seconds") or DEFAULT_REVOCATION_TARGET_SECONDS),
@@ -810,10 +1079,14 @@ def sync_status(connection: sqlite3.Connection) -> dict[str, Any]:
         "cached_active_credentials": credentials,
         "configured_gates": gates,
         "offline_authorization_ready": gates > 0,
+        "head_sequence": head["sequence"],
+        "head_hash": head["event_hash"],
+        "latest_anchor": latest_anchor.get("latest_anchor"),
     }
 
 
 def mark_events_synced(connection: sqlite3.Connection, through_sequence: int | None = None) -> None:
+    begin_write(connection)
     now = utc_now()
     if through_sequence is None:
         connection.execute(
@@ -845,6 +1118,7 @@ def apply_delta(connection: sqlite3.Connection, delta: dict[str, Any]) -> dict[s
     for revocation in delta.get("qr_token_revocations", []):
         revoke_qr_token(connection, **revocation)
         applied["qr_token_revocations"] += 1
+    begin_write(connection)
     set_metadata(connection, "last_delta_at", utc_now())
     if "sync_cursor" in delta:
         set_metadata(connection, "sync_cursor", str(delta["sync_cursor"]))

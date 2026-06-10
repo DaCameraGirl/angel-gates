@@ -23,6 +23,7 @@ It includes:
 - Revocation support for credentials and QR tokens.
 - Offline event queueing.
 - Hash-chained event log verification.
+- Fixed genesis event and head anchors for truncation detection.
 - Local HTTP API for reader/controller integration.
 - Sync delta intake for cloud-to-edge updates.
 
@@ -35,7 +36,7 @@ python -m unittest edge.tests.test_edge_runtime
 
 ## Product Buckets
 
-### Good Startup Idea
+### V1 Scope
 
 - Resident app and manager-operated resident records.
 - Visitor passes with time windows.
@@ -65,7 +66,7 @@ Open `index.html` in a browser for the current dashboard shell. The app uses bro
 Run the edge checks:
 
 ```powershell
-python -m py_compile edge\angel_edge\__init__.py edge\angel_edge\__main__.py edge\angel_edge\crypto_tokens.py edge\angel_edge\store.py edge\angel_edge\http_api.py edge\angel_edge\cli.py edge\tests\test_edge_runtime.py
+python -m compileall edge
 python -m unittest edge.tests.test_edge_runtime
 ```
 
@@ -79,7 +80,7 @@ node --check src/app.js
 
 - `index.html` - application shell.
 - `styles.css` - responsive industrial operations UI.
-- `src/app.js` - local workspace state, forms, credential decision engine, audit events, export, and import.
+- `src/app.js` - dashboard shell, direct edge API panel, local workspace forms, audit events, export, and import.
 - `edge/` - local edge controller runtime and tests.
 - `docs/EDGE_ARCHITECTURE.md` - edge-first product architecture.
 - `docs/SAFETY_BOUNDARY.md` - UL 294 / UL 325 boundary language.

@@ -78,12 +78,22 @@ The edge log is:
 
 - append-only at the application layer
 - hash-chained
+- started from a fixed genesis event
+- periodically anchored upstream by sequence and head hash
 - timestamped
 - credential-attributed when known
 - synced to cloud when online
 - retained locally on a rolling policy
 
-The SQLite implementation stores each event with `previous_hash` and `event_hash`. Verification recalculates from sequence one and reports the first broken link.
+The SQLite implementation stores each event with `previous_hash` and `event_hash`. The hash covers the previous hash and the full event payload. Verification recalculates from the fixed genesis event and reports the first broken link.
+
+A pure hash chain catches edits but not someone deleting valid events from the tail and presenting a shorter chain. Cloud sync must periodically anchor the edge's current `head_sequence` and `head_hash` upstream. Once a cloud anchor exists, truncation below that anchored sequence is detectable.
+
+## Local API Security
+
+The local HTTP API requires bearer authentication even when bound to `127.0.0.1`.
+
+For pilots, the dashboard should talk directly to the edge over LAN or localhost with that token. The dashboard is not allowed to compute access decisions; it calls `POST /authorize` and renders the edge response.
 
 ## Integration Strategy
 

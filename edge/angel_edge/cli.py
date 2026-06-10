@@ -18,6 +18,7 @@ from .store import (
     apply_delta,
     authorize,
     connect,
+    create_event_anchor,
     list_events,
     mark_events_synced,
     migrate,
@@ -113,6 +114,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser = subparsers.add_parser("serve", help="Run the local HTTP API")
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8765)
+    serve_parser.add_argument("--api-token", required=True, help="Required bearer token for every local API request")
+
+    anchor_parser = subparsers.add_parser("anchor-head", help="Record the current event-log head for upstream anchoring")
+    anchor_parser.add_argument("--anchor-type", default="cloud_pending")
+    anchor_parser.add_argument("--upstream-ref")
     return parser
 
 
@@ -147,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "serve":
-            run_server(str(db_path), args.host, args.port)
+            run_server(str(db_path), args.host, args.port, args.api_token)
             return 0
 
         with connect(db_path) as connection:
@@ -236,6 +242,8 @@ def run_db_command(connection, args: argparse.Namespace) -> None:  # noqa: ANN00
     elif args.command == "mark-events-synced":
         mark_events_synced(connection, through_sequence=args.through_sequence)
         print_json({"ok": True})
+    elif args.command == "anchor-head":
+        print_json({"anchor": create_event_anchor(connection, anchor_type=args.anchor_type, upstream_ref=args.upstream_ref)})
     else:
         raise EdgeError(f"unknown_command:{args.command}")
 

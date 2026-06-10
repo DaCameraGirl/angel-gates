@@ -8,6 +8,7 @@
     { id: "controllers", label: "Controllers", countKey: "gates" },
     { id: "residents", label: "Resident App", countKey: "residents" },
     { id: "passes", label: "Visitor Passes", countKey: "passes" },
+    { id: "edge", label: "Live Edge", countKey: null },
     { id: "integrations", label: "Integrations", countKey: "integrations" },
     { id: "maintenance", label: "Maintenance", countKey: "alerts" },
     { id: "audit", label: "Audit Logs", countKey: "audits" },
@@ -25,6 +26,8 @@
     settings: {
       siteName: "",
       cloudEndpoint: "",
+      edgeApiUrl: "",
+      edgeApiToken: "",
       syncMode: "Manual export",
       lastExportAt: "",
       lastImportAt: ""
@@ -40,6 +43,9 @@
   let state = loadState();
   let activeView = getInitialView();
   let latestDecision = null;
+  let edgeEvents = [];
+  let edgeStatus = null;
+  let edgePollTimer = null;
 
   const root = document.getElementById("view-root");
   const nav = document.getElementById("primary-nav");
@@ -90,6 +96,7 @@
   }
 
   function render() {
+    stopEdgePolling();
     renderNav();
     renderMetrics();
     renderTopbar();
@@ -127,6 +134,7 @@
       controllers: ["Retrofit Controller", "Authorize before any relay intent"],
       residents: ["Resident App", "Resident credentials and app status"],
       passes: ["Visitor Passes", "Time-bound access credentials"],
+      edge: ["Live Edge", "Direct-to-edge pilot console"],
       integrations: ["System Integrations", "Existing gate systems stay in the loop"],
       maintenance: ["Maintenance Alerts", "Operational issues tied to controllers"],
       audit: ["Audit Logs", "Every decision and configuration action"],
@@ -143,6 +151,7 @@
       controllers: controllersView,
       residents: residentsView,
       passes: passesView,
+      edge: edgeView,
       integrations: integrationsView,
       maintenance: maintenanceView,
       audit: auditView,
@@ -157,6 +166,7 @@
       controllers: bindControllers,
       residents: bindResidents,
       passes: bindPasses,
+      edge: bindEdge,
       integrations: bindIntegrations,
       maintenance: bindMaintenance,
       audit: bindAudit,
@@ -172,7 +182,7 @@
           <div class="section-head">
             <div>
               <p class="eyebrow">Bucket One</p>
-              <h2>Good Startup Idea</h2>
+              <h2>V1 Scope</h2>
               <p>Build the modern access-control layer that coordinates residents, visitors, credentials, audit trails, maintenance, cloud handoff, and existing gate systems.</p>
             </div>
           </div>
@@ -207,9 +217,9 @@
         <section class="surface full">
           <div class="section-head">
             <div>
-              <p class="eyebrow">Decision Engine</p>
-              <h2>Evaluate an access request</h2>
-              <p>Use configured resident credentials or visitor passes. A decision creates an audit event from real workspace data only.</p>
+              <p class="eyebrow">Edge Authorization</p>
+              <h2>Ask the edge for a decision</h2>
+              <p>The dashboard never computes allow or deny. It sends the tuple to the local edge API and renders the edge response.</p>
             </div>
           </div>
           <div class="surface-body">
@@ -225,10 +235,8 @@
                 <input id="access-credential-value" name="credentialValue" autocomplete="off" required>
               </div>
               <div class="field">
-                <label for="access-gate-id">Controller</label>
-                <select id="access-gate-id" name="gateId" required>
-                  ${gateOptions(false)}
-                </select>
+                <label for="access-gate-id">Gate ID</label>
+                <input id="access-gate-id" name="gateId" autocomplete="off" required>
               </div>
               <div class="field full">
                 <button class="primary-button" type="submit">Evaluate Access</button>
@@ -448,6 +456,66 @@
     `;
   }
 
+  function edgeView() {
+    return `
+      <div class="view-grid">
+        <section class="surface full">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Direct Edge Link</p>
+              <h2>Connect to the local controller API</h2>
+              <p>Pilot dashboards talk directly to the on-site edge box over LAN or localhost. Every request uses the bearer token configured on the edge.</p>
+            </div>
+          </div>
+          <div class="surface-body">
+            <form id="edge-settings-form" class="form-grid">
+              <div class="field">
+                <label for="edge-api-url">Edge API URL</label>
+                <input id="edge-api-url" name="edgeApiUrl" type="url" value="${escapeHtml(state.settings.edgeApiUrl)}" required>
+              </div>
+              <div class="field">
+                <label for="edge-api-token">Bearer token</label>
+                <input id="edge-api-token" name="edgeApiToken" type="password" value="${escapeHtml(state.settings.edgeApiToken)}" required>
+              </div>
+              <div class="field full">
+                <div class="button-row">
+                  <button class="primary-button" type="submit">Save Edge Link</button>
+                  <button class="secondary-button" id="edge-test-button" type="button">Check Edge</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="surface">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Health</p>
+              <h2>Edge status</h2>
+            </div>
+          </div>
+          <div class="surface-body" id="edge-status-panel">
+            ${edgeStatusMarkup()}
+          </div>
+        </section>
+
+        <section class="surface">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Live Feed</p>
+              <h2>Entry events</h2>
+            </div>
+          </div>
+          <div class="surface-body">
+            <div class="live-feed" id="edge-event-feed">
+              ${edgeEventsMarkup()}
+            </div>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
   function integrationsView() {
     return `
       <div class="view-grid">
@@ -631,19 +699,27 @@
 
   function bindOverview() {
     const form = document.getElementById("access-form");
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(form));
-      latestDecision = evaluateAccess(data);
-      addAudit({
-        type: "access_decision",
-        title: latestDecision.decision === "authorized" ? "Access authorized" : "Access denied",
-        detail: latestDecision.reason,
-        gateId: data.gateId,
-        credentialType: data.credentialType,
-        decision: latestDecision.decision
-      });
-      saveState();
+      latestDecision = {
+        decision: "",
+        reason: "Waiting for edge response..."
+      };
+      render();
+      try {
+        const result = await requestEdgeAuthorization(data);
+        latestDecision = {
+          decision: result.decision === "allow" ? "authorized" : "denied",
+          reason: `${result.reason}. Event ${result.event_id}.`
+        };
+      } catch (error) {
+        latestDecision = {
+          decision: "denied",
+          reason: error.message
+        };
+      }
+      render();
     });
   }
 
@@ -730,6 +806,25 @@
       });
       saveState();
     });
+  }
+
+  function bindEdge() {
+    const form = document.getElementById("edge-settings-form");
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(form));
+      state.settings.edgeApiUrl = data.edgeApiUrl.trim().replace(/\/+$/, "");
+      state.settings.edgeApiToken = data.edgeApiToken.trim();
+      saveState();
+    });
+
+    document.getElementById("edge-test-button").addEventListener("click", async () => {
+      await refreshEdgeStatus();
+      await refreshEdgeEvents();
+      renderEdgePanels();
+    });
+
+    startEdgePolling();
   }
 
   function bindIntegrations() {
@@ -821,58 +916,138 @@
     document.getElementById("sync-import-input").addEventListener("change", importWorkspace);
   }
 
-  function evaluateAccess(data) {
-    const gate = state.gates.find((item) => item.id === data.gateId);
-    const credentialValue = normalizeCredential(data.credentialType, data.credentialValue);
-
-    if (!gate) {
-      return {
-        decision: "denied",
-        reason: "No configured controller matches the request."
-      };
-    }
-
-    const resident = state.residents.find((item) => {
-      return (
-        item.status === "Active" &&
-        item.credentialType === data.credentialType &&
-        item.credentialValue === credentialValue &&
-        (item.gateId === "all" || item.gateId === gate.id)
-      );
+  async function requestEdgeAuthorization(data) {
+    return edgeRequest("/authorize", {
+      method: "POST",
+      body: JSON.stringify({
+        credential_type: edgeCredentialType(data.credentialType),
+        credential_value: data.credentialValue,
+        gate_id: data.gateId,
+        request_source: "dashboard"
+      })
     });
+  }
 
-    if (resident) {
-      return {
-        decision: "authorized",
-        reason: `${resident.name} is active for ${gate.name}. Relay intent recorded for certified controller path.`
-      };
+  function edgeCredentialType(label) {
+    if (label === "License plate") return "plate";
+    if (label === "QR code") return "qr";
+    if (label === "PIN") return "pin";
+    return String(label || "").toLowerCase();
+  }
+
+  async function edgeRequest(path, options = {}) {
+    if (!state.settings.edgeApiUrl || !state.settings.edgeApiToken) {
+      throw new Error("Edge API URL and bearer token are required.");
     }
-
-    const now = new Date();
-    const pass = state.passes.find((item) => {
-      const startsAt = new Date(item.startsAt);
-      const expiresAt = new Date(item.expiresAt);
-      return (
-        item.status === "Active" &&
-        item.credentialType === data.credentialType &&
-        item.credentialValue === credentialValue &&
-        (item.gateId === "all" || item.gateId === gate.id) &&
-        startsAt <= now &&
-        expiresAt >= now
-      );
+    const response = await fetch(`${state.settings.edgeApiUrl}${path}`, {
+      ...options,
+      headers: {
+        "Authorization": `Bearer ${state.settings.edgeApiToken}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
     });
-
-    if (pass) {
-      return {
-        decision: "authorized",
-        reason: `${pass.visitorName} has an active visitor pass for ${gate.name}. Relay intent recorded for certified controller path.`
-      };
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.error || `Edge API returned ${response.status}.`);
     }
+    return body;
+  }
 
-    return {
-      decision: "denied",
-      reason: "No active resident credential or visitor pass matched this controller."
-    };
+  async function refreshEdgeStatus() {
+    edgeStatus = await edgeRequest("/health");
+    return edgeStatus;
+  }
+
+  async function refreshEdgeEvents() {
+    const latestSequence = edgeEvents.reduce((max, event) => Math.max(max, Number(event.sequence || 0)), 0);
+    const path = latestSequence ? `/events?after_sequence=${latestSequence}&limit=50` : "/events?limit=25";
+    const result = await edgeRequest(path);
+    const incoming = Array.isArray(result.events) ? result.events : [];
+    if (latestSequence) {
+      edgeEvents = [...incoming.reverse(), ...edgeEvents].slice(0, 50);
+    } else {
+      edgeEvents = incoming;
+    }
+    return edgeEvents;
+  }
+
+  function startEdgePolling() {
+    if (!state.settings.edgeApiUrl || !state.settings.edgeApiToken) {
+      return;
+    }
+    refreshEdgeStatus()
+      .then(refreshEdgeEvents)
+      .then(renderEdgePanels)
+      .catch((error) => {
+        edgeStatus = { error: error.message };
+        renderEdgePanels();
+      });
+    edgePollTimer = window.setInterval(() => {
+      refreshEdgeEvents().then(renderEdgePanels).catch(() => {});
+    }, 2500);
+  }
+
+  function stopEdgePolling() {
+    if (edgePollTimer) {
+      window.clearInterval(edgePollTimer);
+      edgePollTimer = null;
+    }
+  }
+
+  function renderEdgePanels() {
+    const statusPanel = document.getElementById("edge-status-panel");
+    const feed = document.getElementById("edge-event-feed");
+    if (statusPanel) {
+      statusPanel.innerHTML = edgeStatusMarkup();
+    }
+    if (feed) {
+      feed.innerHTML = edgeEventsMarkup();
+    }
+  }
+
+  function edgeStatusMarkup() {
+    if (!state.settings.edgeApiUrl || !state.settings.edgeApiToken) {
+      return emptyStateMarkup("No edge link configured", "Enter the local edge API URL and bearer token for this pilot console.");
+    }
+    if (!edgeStatus) {
+      return emptyStateMarkup("Not checked yet", "Use Check Edge or wait for the live poller.");
+    }
+    if (edgeStatus.error) {
+      return emptyStateMarkup("Edge unreachable", edgeStatus.error);
+    }
+    return `
+      <ul class="stack-list">
+        <li><strong>Edge ID</strong><span>${escapeHtml(edgeStatus.edge_id || "Not assigned")}</span></li>
+        <li><strong>Configured gates</strong><span>${Number(edgeStatus.configured_gates || 0)}</span></li>
+        <li><strong>Cached active credentials</strong><span>${Number(edgeStatus.cached_active_credentials || 0)}</span></li>
+        <li><strong>Unsynced events</strong><span>${Number(edgeStatus.unsynced_events || 0)}</span></li>
+        <li><strong>Head hash</strong><span class="timestamp">${escapeHtml(edgeStatus.head_hash || "")}</span></li>
+      </ul>
+    `;
+  }
+
+  function edgeEventsMarkup() {
+    if (!state.settings.edgeApiUrl || !state.settings.edgeApiToken) {
+      return emptyStateMarkup("Live feed disconnected", "Configure the edge link before loading entry events.");
+    }
+    if (!edgeEvents.length) {
+      return emptyStateMarkup("No edge events loaded", "The feed will populate from the edge event log.");
+    }
+    return edgeEvents
+      .map((event) => `
+        <article class="event-line ${event.decision === "allow" ? "allowed" : event.decision === "deny" ? "denied" : ""}">
+          <div>
+            <strong>${escapeHtml(event.credential_type || event.event_type || "event")} ${event.decision ? escapeHtml(event.decision).toUpperCase() : ""}</strong>
+            <span>${escapeHtml(event.principal_label || event.reason || "No principal")}</span>
+          </div>
+          <div>
+            <span>${escapeHtml(event.gate_id || "workspace")}</span>
+            <small>${formatDate(event.occurred_at)} · #${Number(event.sequence || 0)}</small>
+          </div>
+        </article>
+      `)
+      .join("");
   }
 
   function addAudit(entry) {

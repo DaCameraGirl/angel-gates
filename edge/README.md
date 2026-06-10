@@ -12,6 +12,7 @@ The edge keeps a local SQLite cache of gates, resident credentials, visitor cred
 - Revocation story: online target is under 30 seconds from cloud delta to edge apply.
 - QR verification: Ed25519-signed visitor QR tokens are verified using cached public keys.
 - Event log: access and configuration events are hash-chained for tamper evidence.
+- Genesis and anchors: the log starts from a fixed genesis event and can anchor its current head upstream so tail truncation is detectable.
 - No seeded data: initialization creates schema only.
 
 ## Install
@@ -103,15 +104,26 @@ The edge can authorize that QR without cloud reachability as long as the public 
 ## Local HTTP API
 
 ```powershell
-python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 serve --host 127.0.0.1 --port 8765
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 serve `
+  --host 127.0.0.1 `
+  --port 8765 `
+  --api-token "replace-with-a-long-random-token"
 ```
 
 Endpoints:
 
 - `GET /health`
 - `GET /events`
+- `GET /events/stream`
 - `POST /authorize`
 - `POST /sync/delta`
+- `POST /anchors/head`
+
+Every endpoint requires:
+
+```text
+Authorization: Bearer replace-with-a-long-random-token
+```
 
 ## Verify The Event Log
 
@@ -120,3 +132,13 @@ python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 verify-log
 ```
 
 The verifier recalculates every hash from the beginning of the log and reports the first broken sequence if anything was modified.
+
+## Anchor The Current Head
+
+Cloud sync should periodically store the current edge head hash and sequence. The local command records the anchor payload that the cloud service should acknowledge:
+
+```powershell
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 anchor-head --anchor-type cloud_pending
+```
+
+When the cloud stores that sequence and hash, later tail truncation becomes detectable because a shortened local chain can no longer satisfy the latest known anchor.

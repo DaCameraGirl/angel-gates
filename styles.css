@@ -542,6 +542,46 @@ td {
   margin-bottom: 4px;
 }
 
+.live-feed {
+  display: grid;
+  gap: 10px;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.event-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 12px;
+}
+
+.event-line.allowed {
+  border-left-color: var(--go);
+}
+
+.event-line.denied {
+  border-left-color: var(--stop);
+}
+
+.event-line div {
+  display: grid;
+  gap: 4px;
+}
+
+.event-line div:last-child {
+  text-align: right;
+}
+
+.event-line span,
+.event-line small {
+  color: var(--muted);
+}
+
 .split-actions {
   display: flex;
   gap: 8px;

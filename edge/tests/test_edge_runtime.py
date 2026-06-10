@@ -12,6 +12,7 @@ from edge.angel_edge.store import (
     add_qr_public_key,
     authorize,
     connect,
+    create_event_anchor,
     migrate,
     revoke_credential,
     revoke_qr_token,
@@ -71,7 +72,9 @@ class EdgeRuntimeTest(unittest.TestCase):
         )
         self.assertEqual("deny", denied["decision"])
         self.assertEqual("credential_not_found", denied["reason"])
-        self.assertTrue(verify_event_log(self.connection)["ok"])
+        verification = verify_event_log(self.connection)
+        self.assertTrue(verification["ok"])
+        self.assertGreaterEqual(verification["checked"], 5)
 
     def test_plate_requires_confidence_threshold(self) -> None:
         add_credential(
@@ -81,7 +84,7 @@ class EdgeRuntimeTest(unittest.TestCase):
             principal_label="Unit 102",
             principal_type="resident",
             credential_type="plate",
-            credential_value="abc 123",
+            credential_value="ABO-I23",
             gate_scope=["front"],
             confidence_threshold=0.85,
         )
@@ -89,7 +92,7 @@ class EdgeRuntimeTest(unittest.TestCase):
         low = authorize(
             self.connection,
             credential_type="plate",
-            credential_value="ABC123",
+            credential_value="AB0-123",
             gate_id="front",
             confidence=0.72,
         )
@@ -99,7 +102,7 @@ class EdgeRuntimeTest(unittest.TestCase):
         high = authorize(
             self.connection,
             credential_type="plate",
-            credential_value="ABC123",
+            credential_value="AB0 123",
             gate_id="front",
             confidence=0.91,
         )
@@ -119,7 +122,7 @@ class EdgeRuntimeTest(unittest.TestCase):
                 "principal_id": "visitor-1",
                 "principal_label": "Visitor One",
                 "gate_scope": ["front"],
-                "exp": int(time.time()) + 3600,
+                "exp": int(time.time()) - 30,
                 "max_uses": 1,
             },
         )
@@ -150,6 +153,33 @@ class EdgeRuntimeTest(unittest.TestCase):
         )
         self.assertEqual("deny", revoked["decision"])
         self.assertEqual("qr_token_revoked", revoked["reason"])
+
+    def test_anchor_detects_tail_truncation(self) -> None:
+        add_credential(
+            self.connection,
+            credential_id="cred-pin-anchor",
+            principal_id="unit-103",
+            principal_label="Unit 103",
+            principal_type="resident",
+            credential_type="pin",
+            credential_value="654321",
+            gate_scope=["front"],
+        )
+        authorize(
+            self.connection,
+            credential_type="pin",
+            credential_value="654321",
+            gate_id="front",
+        )
+        anchor = create_event_anchor(self.connection, anchor_type="cloud_ack", upstream_ref="cloud-log-1")
+        self.connection.execute("PRAGMA foreign_keys = OFF")
+        self.connection.execute("DELETE FROM events WHERE sequence = ?", (anchor["sequence"],))
+        self.connection.commit()
+        self.connection.execute("PRAGMA foreign_keys = ON")
+
+        verification = verify_event_log(self.connection)
+        self.assertFalse(verification["ok"])
+        self.assertEqual("event_log_truncated_below_latest_anchor", verification["error"])
 
 
 if __name__ == "__main__":

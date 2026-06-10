@@ -25,6 +25,9 @@ class TokenError(ValueError):
     """Raised when a signed QR token is malformed or fails verification."""
 
 
+DEFAULT_CLOCK_SKEW_SECONDS = 60
+
+
 @dataclass(frozen=True)
 class VerifiedToken:
     header: dict[str, Any]
@@ -39,9 +42,9 @@ def b64url_encode(raw: bytes) -> str:
 def b64url_decode(value: str) -> bytes:
     padding = "=" * (-len(value) % 4)
     try:
-      return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+        return base64.urlsafe_b64decode((value + padding).encode("ascii"))
     except Exception as exc:  # noqa: BLE001
-      raise TokenError("invalid_base64") from exc
+        raise TokenError("invalid_base64") from exc
 
 
 def canonical_json(data: dict[str, Any]) -> bytes:
@@ -86,7 +89,12 @@ def sign_token(private_key: Ed25519PrivateKey, key_id: str, payload: dict[str, A
     return ".".join([signing_input.decode("ascii"), b64url_encode(signature)])
 
 
-def verify_token(token: str, public_keys: dict[str, str], now: int | None = None) -> VerifiedToken:
+def verify_token(
+    token: str,
+    public_keys: dict[str, str],
+    now: int | None = None,
+    clock_skew_seconds: int = DEFAULT_CLOCK_SKEW_SECONDS,
+) -> VerifiedToken:
     parts = token.split(".")
     if len(parts) != 3:
         raise TokenError("token_must_have_three_parts")
@@ -115,11 +123,11 @@ def verify_token(token: str, public_keys: dict[str, str], now: int | None = None
     current = int(time.time() if now is None else now)
     not_before = payload.get("nbf")
     expires_at = payload.get("exp")
-    if not_before is not None and current < int(not_before):
+    if not_before is not None and current + clock_skew_seconds < int(not_before):
         raise TokenError("token_not_yet_valid")
     if expires_at is None:
         raise TokenError("token_missing_expiry")
-    if current > int(expires_at):
+    if current - clock_skew_seconds > int(expires_at):
         raise TokenError("token_expired")
 
     required = ["token_id", "principal_id", "principal_label", "gate_scope"]
