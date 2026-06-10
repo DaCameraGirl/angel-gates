@@ -8,7 +8,7 @@ import secrets
 import sqlite3
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -20,14 +20,26 @@ GENESIS_EVENT_ID = "evt_genesis_v1"
 GENESIS_OCCURRED_AT = "1970-01-01T00:00:00Z"
 GENESIS_REASON = "angel_gates_event_log_genesis_v1"
 DEFAULT_REVOCATION_TARGET_SECONDS = 30
+RATE_LIMIT_WINDOW_SECONDS = 3600
+RATE_LIMIT_RETENTION_SECONDS = 86400
+RATE_LIMITED_CREDENTIAL_TYPES = {"pin", "qr"}
+RATE_LIMIT_BACKOFF_SECONDS = (
+    (9, 3600),
+    (6, 300),
+    (3, 30),
+)
 
 
 class EdgeError(RuntimeError):
     """Base runtime error for edge operations."""
 
 
+def format_utc(value: datetime) -> str:
+    return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
 def utc_now() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return format_utc(datetime.now(UTC))
 
 
 def parse_time(value: str | None) -> datetime | None:
@@ -205,6 +217,33 @@ def migrate(connection: sqlite3.Connection, edge_id: str | None = None) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_api_tokens_hash
           ON api_tokens (token_hash);
+
+        CREATE TABLE IF NOT EXISTS rate_limit_failures (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          occurred_at TEXT NOT NULL,
+          gate_id TEXT NOT NULL,
+          credential_type TEXT NOT NULL,
+          scope_kind TEXT NOT NULL CHECK (scope_kind IN ('gate_type', 'credential')),
+          scope_key TEXT NOT NULL,
+          reason TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_rate_limit_failures_scope
+          ON rate_limit_failures (scope_kind, scope_key, occurred_at);
+
+        CREATE TABLE IF NOT EXISTS rate_limit_lockouts (
+          scope_kind TEXT NOT NULL CHECK (scope_kind IN ('gate_type', 'credential')),
+          scope_key TEXT NOT NULL,
+          gate_id TEXT NOT NULL,
+          credential_type TEXT NOT NULL,
+          fail_count INTEGER NOT NULL,
+          locked_until TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (scope_kind, scope_key)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_rate_limit_lockouts_active
+          ON rate_limit_lockouts (credential_type, gate_id, locked_until);
         """
     )
     set_metadata(connection, "schema_version", "1")
@@ -580,6 +619,25 @@ def authorize(
             fallback_required=False,
         )
 
+    active_lockout = active_rate_limit(
+        connection,
+        credential_type=credential_type,
+        credential_value=credential_value,
+        gate_id=gate_id,
+    )
+    if active_lockout is not None:
+        return deny_and_log(
+            connection,
+            credential_type=credential_type,
+            gate_id=gate_id,
+            reason=active_lockout["reason"],
+            confidence=confidence,
+            request=request,
+            media=media,
+            fallback_required=False,
+            extra=active_lockout["extra"],
+        )
+
     if credential_type == "qr":
         return authorize_qr(connection, credential_value=credential_value, gate_id=gate_id, media=media, request=request)
 
@@ -615,6 +673,7 @@ def authorize(
             request=request,
             media=media,
             fallback_required=fallback,
+            credential_value=credential_value,
         )
 
     if not gate_in_scope(row["gate_scope_json"], gate_id):
@@ -630,6 +689,7 @@ def authorize(
             request=request,
             media=media,
             fallback_required=False,
+            credential_value=credential_value,
         )
 
     time_reason = credential_time_reason(row)
@@ -646,6 +706,7 @@ def authorize(
             request=request,
             media=media,
             fallback_required=False,
+            credential_value=credential_value,
         )
 
     if row["max_uses"] is not None and int(row["use_count"]) >= int(row["max_uses"]):
@@ -661,6 +722,7 @@ def authorize(
             request=request,
             media=media,
             fallback_required=False,
+            credential_value=credential_value,
         )
 
     if credential_type == "plate":
@@ -678,6 +740,7 @@ def authorize(
                 request=request,
                 media=media,
                 fallback_required=True,
+                credential_value=credential_value,
             )
         if confidence < threshold:
             return deny_and_log(
@@ -692,6 +755,7 @@ def authorize(
                 request=request,
                 media=media,
                 fallback_required=True,
+                credential_value=credential_value,
             )
 
     connection.execute(
@@ -740,6 +804,7 @@ def authorize_qr(
             request=request,
             media=media,
             fallback_required=True,
+            credential_value=credential_value,
         )
 
     payload = token.payload
@@ -756,6 +821,7 @@ def authorize_qr(
             request=request,
             media=media,
             fallback_required=False,
+            credential_value=credential_value,
         )
     if connection.execute("SELECT 1 FROM revoked_qr_tokens WHERE token_id = ?", (token_id,)).fetchone():
         return deny_and_log(
@@ -769,6 +835,7 @@ def authorize_qr(
             request=request,
             media=media,
             fallback_required=True,
+            credential_value=credential_value,
         )
 
     max_uses = payload.get("max_uses")
@@ -785,6 +852,7 @@ def authorize_qr(
             request=request,
             media=media,
             fallback_required=False,
+            credential_value=credential_value,
         )
 
     set_qr_usage(connection, token_id, usage + 1)
@@ -819,6 +887,8 @@ def deny_and_log(
     request: dict[str, Any] | None = None,
     media: dict[str, Any] | None = None,
     fallback_required: bool = False,
+    credential_value: str | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     event = append_event(
         connection,
@@ -834,7 +904,16 @@ def deny_and_log(
         fallback_required=fallback_required,
         request=request or {"credential_type": credential_type, "gate_id": gate_id},
         media=media or {},
+        extra=extra or {},
     )
+    if credential_value is not None and credential_type in RATE_LIMITED_CREDENTIAL_TYPES:
+        record_rate_limit_failure(
+            connection,
+            credential_type=credential_type,
+            credential_value=credential_value,
+            gate_id=gate_id,
+            reason=reason,
+        )
     connection.commit()
     return decision_response("deny", reason, event, fallback_required=fallback_required)
 
@@ -1307,6 +1386,177 @@ def gate_in_scope(scope_json: str, gate_id: str) -> bool:
 def gate_allowed(scope: list[Any], gate_id: str) -> bool:
     normalized = [str(item) for item in scope]
     return "*" in normalized or gate_id in normalized
+
+
+def rate_limit_contexts(credential_type: str, credential_value: str, gate_id: str) -> list[dict[str, str]]:
+    if credential_type not in RATE_LIMITED_CREDENTIAL_TYPES:
+        return []
+    contexts = [
+        {
+            "scope_kind": "gate_type",
+            "scope_key": f"{gate_id}:{credential_type}",
+            "gate_id": gate_id,
+            "credential_type": credential_type,
+        }
+    ]
+    if credential_type == "pin":
+        credential_key = credential_hash("pin", credential_value)
+    else:
+        credential_key = hashlib.sha256(f"qr:{credential_value}".encode("utf-8")).hexdigest()
+    contexts.append(
+        {
+            "scope_kind": "credential",
+            "scope_key": f"{credential_type}:{credential_key}",
+            "gate_id": gate_id,
+            "credential_type": credential_type,
+        }
+    )
+    return contexts
+
+
+def active_rate_limit(
+    connection: sqlite3.Connection,
+    *,
+    credential_type: str,
+    credential_value: str,
+    gate_id: str,
+) -> dict[str, Any] | None:
+    now = utc_now()
+    for context in rate_limit_contexts(credential_type, credential_value, gate_id):
+        row = connection.execute(
+            """
+            SELECT *
+            FROM rate_limit_lockouts
+            WHERE scope_kind = ? AND scope_key = ? AND locked_until > ?
+            ORDER BY locked_until DESC
+            LIMIT 1
+            """,
+            (context["scope_kind"], context["scope_key"], now),
+        ).fetchone()
+        if row is not None:
+            return {
+                "reason": rate_limit_reason(credential_type, context["scope_kind"], locked=True),
+                "extra": {
+                    "scope_kind": row["scope_kind"],
+                    "scope_key": row["scope_key"],
+                    "fail_count": row["fail_count"],
+                    "locked_until": row["locked_until"],
+                },
+            }
+    return None
+
+
+def record_rate_limit_failure(
+    connection: sqlite3.Connection,
+    *,
+    credential_type: str,
+    credential_value: str,
+    gate_id: str,
+    reason: str,
+) -> list[dict[str, Any]]:
+    if credential_type not in RATE_LIMITED_CREDENTIAL_TYPES:
+        return []
+
+    now = datetime.now(UTC)
+    occurred_at = format_utc(now)
+    window_start = format_utc(now - timedelta(seconds=RATE_LIMIT_WINDOW_SECONDS))
+    cleanup_before = format_utc(now - timedelta(seconds=RATE_LIMIT_RETENTION_SECONDS))
+    connection.execute("DELETE FROM rate_limit_failures WHERE occurred_at < ?", (cleanup_before,))
+
+    lockouts = []
+    for context in rate_limit_contexts(credential_type, credential_value, gate_id):
+        connection.execute(
+            """
+            INSERT INTO rate_limit_failures (
+              occurred_at, gate_id, credential_type, scope_kind, scope_key, reason
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                occurred_at,
+                gate_id,
+                credential_type,
+                context["scope_kind"],
+                context["scope_key"],
+                reason,
+            ),
+        )
+        fail_count = connection.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM rate_limit_failures
+            WHERE scope_kind = ? AND scope_key = ? AND occurred_at >= ?
+            """,
+            (context["scope_kind"], context["scope_key"], window_start),
+        ).fetchone()["count"]
+        lockout_seconds = rate_limit_backoff_seconds(int(fail_count))
+        if lockout_seconds == 0:
+            continue
+
+        locked_until = format_utc(now + timedelta(seconds=lockout_seconds))
+        connection.execute(
+            """
+            INSERT INTO rate_limit_lockouts (
+              scope_kind, scope_key, gate_id, credential_type, fail_count, locked_until, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(scope_kind, scope_key) DO UPDATE SET
+              gate_id = excluded.gate_id,
+              credential_type = excluded.credential_type,
+              fail_count = excluded.fail_count,
+              locked_until = excluded.locked_until,
+              updated_at = excluded.updated_at
+            """,
+            (
+                context["scope_kind"],
+                context["scope_key"],
+                gate_id,
+                credential_type,
+                int(fail_count),
+                locked_until,
+                occurred_at,
+            ),
+        )
+        event_reason = rate_limit_reason(credential_type, context["scope_kind"], locked=False)
+        event = append_event(
+            connection,
+            event_type="rate_limit",
+            credential_type=credential_type,
+            gate_id=gate_id,
+            decision="deny",
+            reason=event_reason,
+            extra={
+                "scope_kind": context["scope_kind"],
+                "scope_key": context["scope_key"],
+                "fail_count": int(fail_count),
+                "window_seconds": RATE_LIMIT_WINDOW_SECONDS,
+                "lockout_seconds": lockout_seconds,
+                "locked_until": locked_until,
+                "trigger_reason": reason,
+            },
+        )
+        lockouts.append(
+            {
+                "reason": event_reason,
+                "scope_kind": context["scope_kind"],
+                "scope_key": context["scope_key"],
+                "fail_count": int(fail_count),
+                "locked_until": locked_until,
+                "event": event,
+            }
+        )
+    return lockouts
+
+
+def rate_limit_backoff_seconds(fail_count: int) -> int:
+    for threshold, duration in RATE_LIMIT_BACKOFF_SECONDS:
+        if fail_count >= threshold:
+            return duration
+    return 0
+
+
+def rate_limit_reason(credential_type: str, scope_kind: str, *, locked: bool) -> str:
+    scope_label = "gate" if scope_kind == "gate_type" else "credential"
+    state = "locked" if locked else "lockout"
+    return f"rate_limit_{credential_type}_{scope_label}_{state}"
 
 
 def credential_time_reason(row: sqlite3.Row) -> str | None:

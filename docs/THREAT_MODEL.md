@@ -19,9 +19,13 @@ This threat model focuses on realistic pilot and small-property deployment risks
 
 Risk: an attacker tries thousands of PINs at a gate.
 
-Current answer: every deny is logged locally.
+Current answer: failed PIN attempts are stored in SQLite and counted over a sliding one-hour window. Lockouts are scoped by gate plus credential type, and also by credential hash, so a gate-level attack is contained to that gate while repeated attacks against one credential still leave a manager-visible trail. Backoff is 30 seconds after 3 failures, 5 minutes after 6, and 1 hour after 9. Every lockout writes a `rate_limit` event into the hash-chained log.
 
-Gap: add gate-level and credential-type rate limiting. Proposed rule: after 3 wrong PINs at one gate, lock PIN attempts for 30 seconds, log the lockout, then increase backoff on repeated failures.
+### QR Abuse At The Pedestal
+
+Risk: an attacker spams malformed or revoked QR payloads to burn CPU or probe visitor-pass behavior.
+
+Current answer: QR failures use the same persistent rate-limit path as PIN failures. After lockout, the edge denies before signature verification, revocation lookup, or token usage checks.
 
 ### Stolen Bearer Token
 
@@ -36,6 +40,14 @@ Gap: cloud token rotation and user/session inventory are not built yet.
 Risk: someone photographs the edge QR before install.
 
 Current answer: QR payload has no authority. It only contains device ID, public key, and bootstrap nonce. Claim requires the edge to sign a challenge bound to property and gate.
+
+### Revoked Binding Artifact Replay
+
+Risk: a revoked cloud-signed binding artifact is replayed during a later recommissioning attempt for the same physical edge.
+
+Current answer: the edge stops authorizing when binding revocation lands, and factory reset removes the local binding state and device key.
+
+Gap: cloud should store revoked binding artifact hashes and refuse to honor them during future claim or rebind flows.
 
 ### Binding Revoked But Edge Keeps Opening
 
@@ -56,6 +68,14 @@ Risk: someone deletes the end of the log and presents a shorter valid chain.
 Current answer: head anchors store sequence and hash. Once cloud stores anchors append-only, truncation below the latest anchor is detectable.
 
 Gap: cloud-side anchor storage and fork rejection are not built yet.
+
+### Clock Manipulation
+
+Risk: an attacker or bad OS image moves the edge clock backward, making expired QR tokens look valid or making event timestamps unreliable.
+
+Current answer: QR verification allows only a small skew tolerance for normal drift.
+
+Gap: the Pi image should include RTC or verified NTP sync, and the HTTP authorization service should refuse to start access decisions until time is sane.
 
 ### SD Card Failure Or Device Key Loss
 

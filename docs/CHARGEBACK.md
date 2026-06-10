@@ -38,6 +38,30 @@ The first pilot can support a manual incident packet:
 
 Automated PDF generation can come after the pilot proves the evidence workflow.
 
+## Export Shape
+
+The JSON export must carry verification data from day one:
+
+- `events[].sequence`
+- `events[].event_id`
+- `events[].event_hash`
+- `events[].previous_hash`
+- `events[].occurred_at`
+- `events[].gate_id`
+- `events[].credential_type`
+- `events[].credential_id`
+- `events[].principal_id`
+- `events[].principal_label`
+- `events[].decision`
+- `events[].reason`
+- `events[].media`
+- `latest_anchor.sequence`
+- `latest_anchor.event_hash`
+- `latest_anchor.anchored_at`
+- `latest_anchor.upstream_ref`
+
+CSV can be the manager-readable companion format, but JSON is the integrity format. A recipient should be able to verify the selected events against the hash chain and latest known anchor.
+
 ## Why It Sells
 
 The audit log is not only about security. It creates a chargeback path where the property previously had a maintenance expense with no accountable event trail.

@@ -98,6 +98,104 @@ class EdgeRuntimeTest(unittest.TestCase):
         self.assertTrue(verification["ok"])
         self.assertGreaterEqual(verification["checked"], 5)
 
+    def test_pin_rate_limit_locks_gate_persists_and_expires(self) -> None:
+        add_credential(
+            self.connection,
+            credential_id="cred-pin-rate-limit",
+            principal_id="unit-105",
+            principal_label="Unit 105",
+            principal_type="resident",
+            credential_type="pin",
+            credential_value="222333",
+            gate_scope=["front"],
+        )
+
+        for _ in range(3):
+            denied = authorize(
+                self.connection,
+                credential_type="pin",
+                credential_value="000000",
+                gate_id="front",
+            )
+            self.assertEqual("deny", denied["decision"])
+            self.assertEqual("credential_not_found", denied["reason"])
+
+        reasons = [
+            row["reason"]
+            for row in self.connection.execute(
+                "SELECT reason FROM events WHERE event_type = 'rate_limit' ORDER BY sequence ASC"
+            )
+        ]
+        self.assertIn("rate_limit_pin_gate_lockout", reasons)
+        self.assertIn("rate_limit_pin_credential_lockout", reasons)
+
+        locked = authorize(
+            self.connection,
+            credential_type="pin",
+            credential_value="222333",
+            gate_id="front",
+        )
+        self.assertEqual("deny", locked["decision"])
+        self.assertEqual("rate_limit_pin_gate_locked", locked["reason"])
+        self.assertFalse(locked["relay_intent"])
+
+        self.connection.close()
+        self.connection = connect(self.db_path)
+        migrate(self.connection, edge_id="edge-test")
+        still_locked = authorize(
+            self.connection,
+            credential_type="pin",
+            credential_value="222333",
+            gate_id="front",
+        )
+        self.assertEqual("rate_limit_pin_gate_locked", still_locked["reason"])
+
+        expired_at = (
+            (datetime.now(UTC) - timedelta(seconds=1))
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+        self.connection.execute("UPDATE rate_limit_lockouts SET locked_until = ?", (expired_at,))
+        self.connection.commit()
+        allowed = authorize(
+            self.connection,
+            credential_type="pin",
+            credential_value="222333",
+            gate_id="front",
+        )
+        self.assertEqual("allow", allowed["decision"])
+        self.assertTrue(verify_event_log(self.connection)["ok"])
+
+    def test_qr_rate_limit_blocks_before_signature_verification(self) -> None:
+        for _ in range(3):
+            denied = authorize(
+                self.connection,
+                credential_type="qr",
+                credential_value="not-a-signed-token",
+                gate_id="front",
+            )
+            self.assertEqual("deny", denied["decision"])
+            self.assertNotEqual("rate_limit_qr_gate_locked", denied["reason"])
+
+        locked = authorize(
+            self.connection,
+            credential_type="qr",
+            credential_value="not-a-signed-token",
+            gate_id="front",
+        )
+        self.assertEqual("deny", locked["decision"])
+        self.assertEqual("rate_limit_qr_gate_locked", locked["reason"])
+
+        reasons = [
+            row["reason"]
+            for row in self.connection.execute(
+                "SELECT reason FROM events WHERE event_type = 'rate_limit' ORDER BY sequence ASC"
+            )
+        ]
+        self.assertIn("rate_limit_qr_gate_lockout", reasons)
+        self.assertTrue(verify_event_log(self.connection)["ok"])
+
     def test_plate_requires_confidence_threshold(self) -> None:
         add_credential(
             self.connection,

@@ -12,6 +12,7 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - Dashboard-over-edge: the browser dashboard no longer makes allow/deny decisions; it asks the edge API.
 - Local API hardening: scoped short-lived tokens, WAL, busy timeout, single-writer discipline, and SSE event feed.
 - Commissioning control plane: device key, claim challenge, binding artifact, local factory reset, and binding revocation exist.
+- PIN/QR rate limits: failed PIN and QR attempts now create persistent gate/type and credential-scope lockouts with audit events.
 
 ## Next
 
@@ -21,7 +22,6 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - Relay driver: map an allow decision to a configured relay channel with de-energized default and no inverted open behavior.
 - First-boot Pi image: package systemd services, key directory permissions, local API, watchdog, and commissioning payload display.
 - SD-card-loss rebind: support replacing an edge identity for an existing property/gate slot while preserving old event history.
-- PIN/QR rate limits: add gate-level lockout/backoff to prevent brute force at the pedestal.
 - Cloud binding and token rotation: use the device key as root identity and rotate dashboard, sync, and anchor tokens as leaves.
 
 ## Later
