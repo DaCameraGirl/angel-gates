@@ -11,7 +11,7 @@ Gate arms get knocked off or damaged. Managers often know the approximate time w
 1. Manager opens `Incident Review`.
 2. Manager selects property, gate, and time window.
 3. System shows every entry and exit event in that window.
-4. Events include credential, unit or visitor, gate, timestamp, decision, reason, and plate/photo references when available.
+4. Events include credential, unit or visitor, gate, timestamp, decision, reason, and plate/photo/clip references when available.
 5. Manager tags likely responsible event.
 6. System exports an incident report PDF.
 7. Report can attach to an invoice, resident notice, insurer packet, or board packet.
@@ -24,7 +24,7 @@ Gate arms get knocked off or damaged. Managers often know the approximate time w
 - Credential attribution.
 - Unit or visitor sponsor.
 - Plate confidence if LPR is present.
-- Photo or clip reference if camera is present.
+- Clip reference if camera capture is present.
 - Event hash and latest anchor hash.
 - Manager notes.
 
@@ -34,7 +34,8 @@ The first pilot can support a manual incident packet:
 
 - Manager chooses a time window.
 - Dashboard exports matching events as JSON/CSV.
-- Camera clips are attached manually until automated clip capture and report assembly exist.
+- Automated camera capture records local clip references and capture failures in the edge event log.
+- Report assembly can still start as manual JSON/CSV export until PDF generation exists.
 
 Automated PDF generation can come after the pilot proves the evidence workflow.
 

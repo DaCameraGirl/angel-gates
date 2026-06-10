@@ -18,6 +18,7 @@ from .commissioning import (
     revoke_binding,
     sign_claim_challenge,
 )
+from .camera_service import run_camera_service
 from .crypto_tokens import generate_keypair, load_private_key, sign_token
 from .http_api import run_server
 from .relay_service import run_relay_service
@@ -137,12 +138,25 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--port", type=int, default=8765)
     serve_parser.add_argument("--relay-url", help="Local relay service URL, for example http://127.0.0.1:8766")
     serve_parser.add_argument("--relay-token", help="Bearer token for the local relay service")
+    serve_parser.add_argument("--camera-url", help="Local camera service URL, for example http://127.0.0.1:8767")
+    serve_parser.add_argument("--camera-token", help="Bearer token for the local camera service")
 
     relay_parser = subparsers.add_parser("relay-service", help="Run the local relay pulse service")
     relay_parser.add_argument("--host", default="127.0.0.1")
     relay_parser.add_argument("--port", type=int, default=8766)
     relay_parser.add_argument("--token", required=True)
     relay_parser.add_argument("--driver", choices=["logging", "gpio"], default="logging")
+
+    camera_parser = subparsers.add_parser("camera-service", help="Run the local RTSP evidence clip service")
+    camera_parser.add_argument("--host", default="127.0.0.1")
+    camera_parser.add_argument("--port", type=int, default=8767)
+    camera_parser.add_argument("--token", required=True)
+    camera_parser.add_argument("--rtsp-url", required=True)
+    camera_parser.add_argument("--camera-id", default="gate-camera-1")
+    camera_parser.add_argument("--storage-path", default="edge-data/camera-clips")
+    camera_parser.add_argument("--clip-seconds", type=int, default=8)
+    camera_parser.add_argument("--retention-days", type=int, default=14)
+    camera_parser.add_argument("--ffmpeg-path", default="ffmpeg")
 
     scanner_parser = subparsers.add_parser("scanner-service", help="Run a QR scanner input service")
     scanner_parser.add_argument("--edge-url", default="http://127.0.0.1:8765")
@@ -217,11 +231,34 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "serve":
-            run_server(str(db_path), args.host, args.port, relay_url=args.relay_url, relay_token=args.relay_token)
+            run_server(
+                str(db_path),
+                args.host,
+                args.port,
+                relay_url=args.relay_url,
+                relay_token=args.relay_token,
+                camera_url=args.camera_url,
+                camera_token=args.camera_token,
+            )
             return 0
 
         if args.command == "relay-service":
             run_relay_service(str(db_path), args.host, args.port, token=args.token, driver_name=args.driver)
+            return 0
+
+        if args.command == "camera-service":
+            run_camera_service(
+                str(db_path),
+                args.host,
+                args.port,
+                token=args.token,
+                rtsp_url=args.rtsp_url,
+                camera_id=args.camera_id,
+                storage_path=args.storage_path,
+                clip_seconds=args.clip_seconds,
+                retention_days=args.retention_days,
+                ffmpeg_path=args.ffmpeg_path,
+            )
             return 0
 
         if args.command == "scanner-service":

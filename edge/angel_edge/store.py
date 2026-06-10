@@ -1077,7 +1077,17 @@ def append_event(
             event_hash,
         ),
     )
-    return {"event_id": event_id, "event_hash": event_hash, "occurred_at": occurred_at, "sequence": sequence_hint}
+    return {
+        "event_id": event_id,
+        "event_hash": event_hash,
+        "occurred_at": occurred_at,
+        "sequence": sequence_hint,
+        "event_type": event_type,
+        "gate_id": gate_id,
+        "credential_type": credential_type,
+        "decision": decision,
+        "reason": reason,
+    }
 
 
 def verify_event_log(connection: sqlite3.Connection) -> dict[str, Any]:
@@ -1350,6 +1360,110 @@ def record_relay_error(
     return event
 
 
+def record_camera_clip(
+    connection: sqlite3.Connection,
+    *,
+    gate_id: str,
+    camera_id: str,
+    decision_event_id: str,
+    decision_event_hash: str,
+    decision_occurred_at: str,
+    access_decision: str,
+    access_reason: str,
+    clip_path: str,
+    started_at: str,
+    ended_at: str,
+    duration_seconds: int,
+    bytes_written: int,
+    driver: str,
+    retention_days: int,
+) -> dict[str, Any]:
+    validate_linked_decision_event(connection, decision_event_id, decision_event_hash)
+    begin_write(connection)
+    event = append_event(
+        connection,
+        event_type="camera",
+        reason="camera_clip_captured",
+        gate_id=gate_id,
+        media={
+            "clips": [
+                {
+                    "camera_id": camera_id,
+                    "path": clip_path,
+                    "content_type": "video/mp4",
+                    "bytes": int(bytes_written),
+                    "started_at": started_at,
+                    "ended_at": ended_at,
+                }
+            ]
+        },
+        extra={
+            "decision_event_id": decision_event_id,
+            "decision_event_hash": decision_event_hash,
+            "decision_occurred_at": decision_occurred_at,
+            "access_decision": access_decision,
+            "access_reason": access_reason,
+            "duration_seconds": int(duration_seconds),
+            "driver": driver,
+            "retention_days": int(retention_days),
+        },
+    )
+    connection.commit()
+    return event
+
+
+def record_camera_error(
+    connection: sqlite3.Connection,
+    *,
+    gate_id: str,
+    camera_id: str,
+    decision_event_id: str,
+    decision_event_hash: str,
+    decision_occurred_at: str,
+    access_decision: str,
+    access_reason: str,
+    duration_seconds: int,
+    error: str,
+    driver: str,
+) -> dict[str, Any]:
+    validate_linked_decision_event(connection, decision_event_id, decision_event_hash)
+    begin_write(connection)
+    event = append_event(
+        connection,
+        event_type="camera",
+        reason="camera_capture_error",
+        gate_id=gate_id,
+        extra={
+            "camera_id": camera_id,
+            "decision_event_id": decision_event_id,
+            "decision_event_hash": decision_event_hash,
+            "decision_occurred_at": decision_occurred_at,
+            "access_decision": access_decision,
+            "access_reason": access_reason,
+            "duration_seconds": int(duration_seconds),
+            "error": error,
+            "driver": driver,
+        },
+    )
+    connection.commit()
+    return event
+
+
+def validate_linked_decision_event(
+    connection: sqlite3.Connection,
+    decision_event_id: str,
+    decision_event_hash: str,
+) -> None:
+    row = connection.execute(
+        "SELECT event_hash FROM events WHERE event_id = ? AND event_type = 'access_attempt'",
+        (decision_event_id,),
+    ).fetchone()
+    if row is None:
+        raise EdgeError("decision_event_not_found")
+    if row["event_hash"] != decision_event_hash:
+        raise EdgeError("decision_event_hash_mismatch")
+
+
 def sync_status(connection: sqlite3.Connection) -> dict[str, Any]:
     unsynced = connection.execute("SELECT COUNT(*) AS count FROM events WHERE queued_for_sync = 1 AND synced_at IS NULL").fetchone()["count"]
     credentials = connection.execute("SELECT COUNT(*) AS count FROM credentials WHERE status = 'active'").fetchone()["count"]
@@ -1564,6 +1678,9 @@ def decision_response(
         "event_hash": event["event_hash"],
         "occurred_at": event["occurred_at"],
     }
+    for key in ["sequence", "gate_id", "credential_type"]:
+        if event.get(key) is not None:
+            response[key] = event[key]
     if decision == "allow" and relay is not None:
         response["relay"] = relay
     return response

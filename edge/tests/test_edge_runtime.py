@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import time
 import unittest
@@ -21,6 +22,12 @@ from edge.angel_edge.commissioning import (
     verify_device_signature,
 )
 from edge.angel_edge.crypto_tokens import generate_keypair, load_private_key, sign_token
+from edge.angel_edge.drivers.camera import (
+    CameraCaptureRequest,
+    CameraCaptureResult,
+    CameraController,
+    capture_payload_from_authorization,
+)
 from edge.angel_edge.drivers.relay import LoggingRelayDriver, RelayController, relay_payload_from_authorization
 from edge.angel_edge.store import (
     EdgeError,
@@ -35,9 +42,34 @@ from edge.angel_edge.store import (
     migrate,
     revoke_credential,
     revoke_qr_token,
+    utc_now,
     validate_api_token,
     verify_event_log,
 )
+
+
+class FakeCameraDriver:
+    name = "fake-camera"
+
+    def capture(self, capture_request: CameraCaptureRequest) -> CameraCaptureResult:
+        capture_request.storage_path.mkdir(parents=True, exist_ok=True)
+        capture_request.output_path.write_bytes(b"fake mp4 bytes")
+        started_at = utc_now()
+        ended_at = utc_now()
+        return CameraCaptureResult(
+            clip_path=capture_request.output_path,
+            bytes_written=capture_request.output_path.stat().st_size,
+            started_at=started_at,
+            ended_at=ended_at,
+            driver=self.name,
+        )
+
+
+class FailingCameraDriver:
+    name = "failing-camera"
+
+    def capture(self, capture_request: CameraCaptureRequest) -> CameraCaptureResult:
+        raise RuntimeError(f"{capture_request.rtsp_url} unreachable")
 
 
 class EdgeRuntimeTest(unittest.TestCase):
@@ -157,6 +189,101 @@ class EdgeRuntimeTest(unittest.TestCase):
             )
         ]
         self.assertEqual(["relay_pulse", "relay_pulse_suppressed_cooldown"], reasons)
+        self.assertTrue(verify_event_log(self.connection)["ok"])
+
+    def test_camera_controller_records_clip_metadata_linked_to_access_event(self) -> None:
+        add_credential(
+            self.connection,
+            credential_id="cred-pin-camera",
+            principal_id="unit-107",
+            principal_label="Unit 107",
+            principal_type="resident",
+            credential_type="pin",
+            credential_value="777888",
+            gate_scope=["front"],
+        )
+
+        allowed = authorize(
+            self.connection,
+            credential_type="pin",
+            credential_value="777888",
+            gate_id="front",
+        )
+        self.assertEqual("allow", allowed["decision"])
+        self.assertEqual("front", allowed["gate_id"])
+
+        controller = CameraController(
+            db_path=str(self.db_path),
+            rtsp_url="rtsp://user:pass@example.local/front",
+            storage_path=Path(self.tempdir.name) / "clips",
+            camera_id="front-cam",
+            clip_seconds=1,
+            retention_days=7,
+            driver=FakeCameraDriver(),
+        )
+        payload = capture_payload_from_authorization(allowed)
+        self.assertIsNotNone(payload)
+
+        captured = controller.capture_once(payload or {})
+        self.assertTrue(captured["ok"])
+        self.assertEqual("captured", captured["status"])
+
+        row = self.connection.execute(
+            "SELECT * FROM events WHERE event_type = 'camera' AND reason = 'camera_clip_captured'"
+        ).fetchone()
+        self.assertIsNotNone(row)
+        media = json.loads(row["media_json"])
+        extra = json.loads(row["extra_json"])
+        self.assertEqual(allowed["event_id"], extra["decision_event_id"])
+        self.assertEqual(allowed["event_hash"], extra["decision_event_hash"])
+        self.assertEqual("allow", extra["access_decision"])
+        self.assertEqual("front-cam", media["clips"][0]["camera_id"])
+        self.assertTrue(Path(media["clips"][0]["path"]).exists())
+        self.assertTrue(verify_event_log(self.connection)["ok"])
+
+    def test_camera_capture_failure_records_diagnostic_without_blocking_decision(self) -> None:
+        add_credential(
+            self.connection,
+            credential_id="cred-pin-camera-fail",
+            principal_id="unit-108",
+            principal_label="Unit 108",
+            principal_type="resident",
+            credential_type="pin",
+            credential_value="888999",
+            gate_scope=["front"],
+        )
+
+        allowed = authorize(
+            self.connection,
+            credential_type="pin",
+            credential_value="888999",
+            gate_id="front",
+        )
+        self.assertEqual("allow", allowed["decision"])
+        self.assertTrue(allowed["relay_intent"])
+
+        controller = CameraController(
+            db_path=str(self.db_path),
+            rtsp_url="rtsp://user:pass@example.local/front",
+            storage_path=Path(self.tempdir.name) / "clips",
+            camera_id="front-cam",
+            clip_seconds=1,
+            retention_days=7,
+            driver=FailingCameraDriver(),
+        )
+        payload = capture_payload_from_authorization(allowed)
+        failed = controller.capture_once(payload or {})
+        self.assertFalse(failed["ok"])
+        self.assertEqual("capture_error", failed["status"])
+
+        row = self.connection.execute(
+            "SELECT * FROM events WHERE event_type = 'camera' AND reason = 'camera_capture_error'"
+        ).fetchone()
+        self.assertIsNotNone(row)
+        extra = json.loads(row["extra_json"])
+        self.assertEqual(allowed["event_id"], extra["decision_event_id"])
+        self.assertEqual("allow", extra["access_decision"])
+        self.assertNotIn("user:pass", extra["error"])
         self.assertTrue(verify_event_log(self.connection)["ok"])
 
     def test_pin_rate_limit_locks_gate_persists_and_expires(self) -> None:

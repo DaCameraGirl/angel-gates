@@ -150,6 +150,36 @@ python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 serve `
   --relay-token local-relay-token
 ```
 
+## Camera Capture Service
+
+The camera service is a separate local process that owns RTSP and ffmpeg work. The authorization API only dispatches capture requests after the access decision has been written to the event log. Video capture success or failure never changes the allow/deny result or blocks a relay pulse.
+
+Run the camera service with an RTSP camera:
+
+```bash
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 camera-service \
+  --host 127.0.0.1 \
+  --port 8767 \
+  --token "$ANGEL_CAMERA_TOKEN" \
+  --rtsp-url "rtsp://user:pass@camera.local/stream1" \
+  --camera-id front-gate-cam \
+  --storage-path edge-data/camera-clips \
+  --clip-seconds 8 \
+  --retention-days 14
+```
+
+Connect the HTTP authorization API to the local camera service:
+
+```bash
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 serve \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --camera-url http://127.0.0.1:8767 \
+  --camera-token "$ANGEL_CAMERA_TOKEN"
+```
+
+When capture succeeds, the edge records a hash-chained `camera_clip_captured` event with the clip path and the linked access event ID/hash. When capture fails, it records `camera_capture_error` without logging the raw RTSP URL.
+
 ## Signed Visitor QR Flow
 
 Create a signing keypair for cloud/dev signing:
