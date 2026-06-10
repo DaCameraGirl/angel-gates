@@ -110,6 +110,8 @@ The SQLite implementation stores each event with `previous_hash` and `event_hash
 
 A pure hash chain catches edits but not someone deleting valid events from the tail and presenting a shorter chain. Cloud sync must periodically anchor the edge's current `head_sequence` and `head_hash` upstream. Once a cloud anchor exists, truncation below that anchored sequence is detectable.
 
+The edge anchor publisher sends the current head to the witness after 100 new events, after 5 minutes when new events exist, and after local revocation anchors. Each publish includes the previously witnessed sequence and hash. The witness store is append-only per edge and rejects any new anchor that rewinds, forks at an existing sequence, or fails to extend the latest witnessed head.
+
 ## Local API Security
 
 The local HTTP API requires bearer authentication even when bound to `127.0.0.1`.

@@ -8,6 +8,7 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from .anchor_publisher import AnchorPublisher, AnchorPublishError, HttpAnchorClient, run_anchor_publisher
 from . import __version__
 from .commissioning import (
     FACTORY_RESET_CONFIRMATION,
@@ -46,6 +47,7 @@ from .store import (
     to_epoch,
     verify_event_log,
 )
+from .witness import WitnessError, run_witness_service
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -172,6 +174,26 @@ def build_parser() -> argparse.ArgumentParser:
     anchor_parser.add_argument("--anchor-type", default="cloud_pending")
     anchor_parser.add_argument("--upstream-ref")
 
+    witness_parser = subparsers.add_parser("witness-service", help="Run append-only cloud witness storage")
+    witness_parser.add_argument("--host", default="127.0.0.1")
+    witness_parser.add_argument("--port", type=int, default=8770)
+    witness_parser.add_argument("--token", required=True)
+
+    publish_parser = subparsers.add_parser("publish-anchor", help="Publish the current edge head to a cloud witness")
+    publish_parser.add_argument("--witness-url", required=True)
+    publish_parser.add_argument("--witness-token", required=True)
+    publish_parser.add_argument("--force", action="store_true")
+    publish_parser.add_argument("--reason", default="manual")
+    publish_parser.add_argument("--event-interval", type=int, default=100)
+    publish_parser.add_argument("--max-age-seconds", type=int, default=300)
+
+    publisher_parser = subparsers.add_parser("anchor-publisher", help="Run the edge anchor publisher loop")
+    publisher_parser.add_argument("--witness-url", required=True)
+    publisher_parser.add_argument("--witness-token", required=True)
+    publisher_parser.add_argument("--poll-seconds", type=int, default=10)
+    publisher_parser.add_argument("--event-interval", type=int, default=100)
+    publisher_parser.add_argument("--max-age-seconds", type=int, default=300)
+
     subparsers.add_parser("commissioning-payload", help="Print the unclaimed device commissioning payload")
 
     challenge_parser = subparsers.add_parser("sign-claim-challenge", help="Sign a cloud claim challenge with the device key")
@@ -261,6 +283,31 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "witness-service":
+            run_witness_service(str(db_path), args.host, args.port, token=args.token)
+            return 0
+
+        if args.command == "anchor-publisher":
+            run_anchor_publisher(
+                db_path=str(db_path),
+                witness_url=args.witness_url,
+                witness_token=args.witness_token,
+                poll_seconds=args.poll_seconds,
+                event_interval=args.event_interval,
+                max_age_seconds=args.max_age_seconds,
+            )
+            return 0
+
+        if args.command == "publish-anchor":
+            publisher = AnchorPublisher(
+                db_path=str(db_path),
+                client=HttpAnchorClient(witness_url=args.witness_url, witness_token=args.witness_token),
+                event_interval=args.event_interval,
+                max_age_seconds=args.max_age_seconds,
+            )
+            print_json(publisher.publish_once(force=args.force, reason=args.reason))
+            return 0
+
         if args.command == "scanner-service":
             run_scanner_service(
                 edge_url=args.edge_url,
@@ -282,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
                 migrate(connection)
                 run_db_command(connection, args)
         return 0
-    except (EdgeError, ScannerError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (EdgeError, ScannerError, AnchorPublishError, WitnessError, ValueError, KeyError, json.JSONDecodeError) as exc:
         print_json({"ok": False, "error": str(exc)}, stream=sys.stderr)
         return 1
 

@@ -7,6 +7,7 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - Edge authorization runtime: local SQLite authorization keeps residents and already-synced visitor passes working without cloud reachability.
 - Hash-chained event log: every access/configuration event is tamper-evident from a fixed genesis record.
 - Head anchors: edge can anchor the current sequence and hash so tail truncation can be detected after cloud witness.
+- Cloud witness: edge can publish anchors every 100 events, after 5 minutes with new events, and after revocation; witness storage is append-only per edge and rejects forked anchor streams.
 - QR tokens: signed Ed25519 visitor QR tokens verify locally using cached public keys.
 - Offline/degraded mode: the edge decides from cache and queues events while connectivity is down.
 - Dashboard-over-edge: the browser dashboard no longer makes allow/deny decisions; it asks the edge API.
@@ -19,7 +20,6 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 
 ## Next
 
-- Cloud sync and anchor publishing: edge should publish anchors every 100 events, every 5 minutes, and immediately on revocation because cloud witness is what makes truncation externally detectable.
 - Pilot acceptance test: run the real edge service over LAN against PIN, QR, plate, bad bearer, revoked credential, expired QR, low-confidence plate, event replay, anchor, and verify-log paths.
 - First-boot Pi image: package systemd services, key directory permissions, local API, watchdog, and commissioning payload display.
 - SD-card-loss rebind: support replacing an edge identity for an existing property/gate slot while preserving old event history.

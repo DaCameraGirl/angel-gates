@@ -35,6 +35,10 @@ RATE_LIMIT_BACKOFF_SECONDS = (
     (6, 300),
     (3, 30),
 )
+CLOUD_WITNESS_ANCHOR_TYPES = ("cloud_published", "cloud_ack")
+REVOCATION_ANCHOR_TYPES = ("revocation_local", "binding_revocation_local")
+DEFAULT_ANCHOR_EVENT_INTERVAL = 100
+DEFAULT_ANCHOR_MAX_AGE_SECONDS = 300
 
 
 class EdgeError(RuntimeError):
@@ -1231,8 +1235,29 @@ def create_event_anchor(
     upstream_ref: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    begin_write(connection)
     head = current_head(connection)
+    return record_event_anchor(
+        connection,
+        anchor_type=anchor_type,
+        sequence=int(head["sequence"]),
+        event_id=head["event_id"],
+        event_hash=head["event_hash"],
+        upstream_ref=upstream_ref,
+        extra=extra,
+    )
+
+
+def record_event_anchor(
+    connection: sqlite3.Connection,
+    *,
+    anchor_type: str,
+    sequence: int,
+    event_hash: str,
+    event_id: str | None = None,
+    upstream_ref: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    begin_write(connection)
     anchor_id = f"anchor_{uuid.uuid4()}"
     anchored_at = utc_now()
     connection.execute(
@@ -1244,8 +1269,8 @@ def create_event_anchor(
         (
             anchor_id,
             anchor_type,
-            head["sequence"],
-            head["event_hash"],
+            int(sequence),
+            event_hash,
             anchored_at,
             upstream_ref,
             canonical_json(extra or {}),
@@ -1255,12 +1280,141 @@ def create_event_anchor(
     return {
         "anchor_id": anchor_id,
         "anchor_type": anchor_type,
-        "sequence": head["sequence"],
-        "event_id": head["event_id"],
-        "event_hash": head["event_hash"],
+        "sequence": int(sequence),
+        "event_id": event_id,
+        "event_hash": event_hash,
         "anchored_at": anchored_at,
         "upstream_ref": upstream_ref,
     }
+
+
+def latest_cloud_anchor(connection: sqlite3.Connection) -> dict[str, Any] | None:
+    placeholders = ",".join("?" for _ in CLOUD_WITNESS_ANCHOR_TYPES)
+    row = connection.execute(
+        f"""
+        SELECT event_anchors.*, events.event_id, events.occurred_at
+        FROM event_anchors
+        LEFT JOIN events ON events.sequence = event_anchors.sequence
+        WHERE anchor_type IN ({placeholders})
+        ORDER BY event_anchors.sequence DESC, event_anchors.anchored_at DESC
+        LIMIT 1
+        """,
+        CLOUD_WITNESS_ANCHOR_TYPES,
+    ).fetchone()
+    return None if row is None else dict(row)
+
+
+def anchor_publish_due(
+    connection: sqlite3.Connection,
+    *,
+    event_interval: int = DEFAULT_ANCHOR_EVENT_INTERVAL,
+    max_age_seconds: int = DEFAULT_ANCHOR_MAX_AGE_SECONDS,
+) -> dict[str, Any]:
+    head = current_head(connection)
+    head_sequence = int(head["sequence"])
+    previous = latest_cloud_anchor(connection)
+    previous_sequence = int(previous["sequence"]) if previous else 0
+    reasons: list[str] = []
+
+    if head_sequence <= GENESIS_SEQUENCE and previous is None:
+        return {"due": False, "reasons": [], "head": head, "previous_witness": None}
+    if previous is None:
+        reasons.append("no_cloud_witness_anchor")
+    else:
+        if head_sequence - previous_sequence >= int(event_interval):
+            reasons.append("event_count")
+        previous_time = parse_time(previous["anchored_at"])
+        if head_sequence > previous_sequence and previous_time is not None:
+            age_seconds = (datetime.now(UTC) - previous_time).total_seconds()
+            if age_seconds >= int(max_age_seconds):
+                reasons.append("time_elapsed")
+
+    if has_unpublished_revocation_anchor(connection, previous_sequence):
+        reasons.append("revocation")
+
+    return {
+        "due": bool(reasons),
+        "reasons": reasons,
+        "head": head,
+        "previous_witness": previous,
+    }
+
+
+def has_unpublished_revocation_anchor(connection: sqlite3.Connection, previous_sequence: int) -> bool:
+    placeholders = ",".join("?" for _ in REVOCATION_ANCHOR_TYPES)
+    row = connection.execute(
+        f"""
+        SELECT 1
+        FROM event_anchors
+        WHERE anchor_type IN ({placeholders}) AND sequence > ?
+        LIMIT 1
+        """,
+        (*REVOCATION_ANCHOR_TYPES, int(previous_sequence)),
+    ).fetchone()
+    return row is not None
+
+
+def anchor_publish_payload(
+    connection: sqlite3.Connection,
+    *,
+    reasons: list[str],
+) -> dict[str, Any]:
+    edge_id = get_metadata(connection, "edge_id") or get_metadata(connection, "device_id")
+    if not edge_id:
+        raise EdgeError("edge_id_required_for_anchor_publish")
+    head = current_head(connection)
+    previous = latest_cloud_anchor(connection)
+    return {
+        "edge_id": edge_id,
+        "sequence": int(head["sequence"]),
+        "event_id": head["event_id"],
+        "event_hash": head["event_hash"],
+        "occurred_at": head["occurred_at"],
+        "previous_witness_sequence": None if previous is None else int(previous["sequence"]),
+        "previous_witness_hash": None if previous is None else previous["event_hash"],
+        "reasons": reasons,
+        "created_at": utc_now(),
+    }
+
+
+def record_cloud_anchor_ack(
+    connection: sqlite3.Connection,
+    *,
+    payload: dict[str, Any],
+    witness_anchor_id: str,
+    received_at: str,
+    duplicate: bool = False,
+) -> dict[str, Any]:
+    row = connection.execute(
+        "SELECT event_hash FROM events WHERE sequence = ?",
+        (int(payload["sequence"]),),
+    ).fetchone()
+    if row is None:
+        raise EdgeError("cloud_anchor_event_missing")
+    if row["event_hash"] != payload["event_hash"]:
+        raise EdgeError("cloud_anchor_event_hash_mismatch")
+    begin_write(connection)
+    set_metadata(connection, "last_cloud_anchor_sequence", str(int(payload["sequence"])))
+    set_metadata(connection, "last_cloud_anchor_hash", str(payload["event_hash"]))
+    set_metadata(connection, "last_cloud_anchor_at", received_at)
+    anchor = record_event_anchor(
+        connection,
+        anchor_type="cloud_published",
+        sequence=int(payload["sequence"]),
+        event_id=str(payload.get("event_id") or ""),
+        event_hash=str(payload["event_hash"]),
+        upstream_ref=witness_anchor_id,
+        extra={
+            "witness_anchor_id": witness_anchor_id,
+            "received_at": received_at,
+            "duplicate": bool(duplicate),
+            "reasons": payload.get("reasons", []),
+            "previous_witness_sequence": payload.get("previous_witness_sequence"),
+            "previous_witness_hash": payload.get("previous_witness_hash"),
+        },
+    )
+    connection.commit()
+    return anchor
 
 
 def record_relay_pulse(

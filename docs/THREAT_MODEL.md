@@ -65,9 +65,7 @@ Current answer: event hashes cover previous hash, sequence, and full payload fro
 
 Risk: someone deletes the end of the log and presents a shorter valid chain.
 
-Current answer: head anchors store sequence and hash. Once cloud stores anchors append-only, truncation below the latest anchor is detectable.
-
-Gap: cloud-side anchor storage and fork rejection are not built yet.
+Current answer: head anchors store sequence and hash. The edge publisher sends anchors to append-only witness storage every 100 events, after 5 minutes when new events exist, and after revocation. The witness rejects stale anchors, duplicate sequences with different hashes, and anchors that do not extend the previously witnessed head.
 
 ### Clock Manipulation
 

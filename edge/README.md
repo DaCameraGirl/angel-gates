@@ -287,10 +287,47 @@ The verifier recalculates every hash from the beginning of the log and reports t
 
 ## Anchor The Current Head
 
-Cloud sync should periodically store the current edge head hash and sequence. The local command records the anchor payload that the cloud service should acknowledge:
+Cloud sync should periodically store the current edge head hash and sequence. The local command records an anchor without publishing it:
 
 ```powershell
 python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 anchor-head --anchor-type cloud_pending
 ```
 
 When the cloud stores that sequence and hash, later tail truncation becomes detectable because a shortened local chain can no longer satisfy the latest known anchor.
+
+## Publish Anchors To Witness Storage
+
+The witness service is the append-only cloud-side store for edge head anchors. Use a separate database from the edge runtime:
+
+```bash
+python -m edge.angel_edge --db edge-data/witness.sqlite3 witness-service \
+  --host 127.0.0.1 \
+  --port 8770 \
+  --token "$ANGEL_WITNESS_TOKEN"
+```
+
+Run the edge publisher loop against that witness:
+
+```bash
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 anchor-publisher \
+  --witness-url http://127.0.0.1:8770 \
+  --witness-token "$ANGEL_WITNESS_TOKEN" \
+  --poll-seconds 10
+```
+
+The publisher sends the current head when any publish trigger is due:
+
+- no previous cloud witness anchor exists
+- 100 new events since the previous witness anchor
+- 5 minutes have elapsed and new events exist
+- a local credential, QR token, or binding revocation anchor has not been witnessed
+
+For one-shot operation:
+
+```bash
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 publish-anchor \
+  --witness-url http://127.0.0.1:8770 \
+  --witness-token "$ANGEL_WITNESS_TOKEN"
+```
+
+The witness store is append-only per edge. It accepts exact duplicate publishes, but rejects stale anchors, duplicate sequences with different hashes, and anchors that do not extend the previously witnessed sequence/hash.
