@@ -27,6 +27,14 @@ The relay's normally-open contacts land on the gate operator's open-command inpu
 
 The relay must be de-energized by default. Angel Gates failure or power loss means no relay intent is sent.
 
+The edge stores relay configuration per gate:
+
+- `relay_channel`: GPIO/driver channel. For the Raspberry Pi GPIO driver this is the BCM GPIO number, not the physical header pin number.
+- `relay_pulse_ms`: momentary close duration. Default is 500 ms.
+- `relay_cooldown_ms`: minimum time before another pulse on the same gate/channel. Default is 1500 ms.
+
+The GPIO driver assumes an active-high relay board wired through normally-open contacts. Confirm the exact relay HAT schematic before install; some cheap relay boards are active-low and are not acceptable without an explicit driver/configuration change.
+
 ## DoorKing 1601 Pilot Shape
 
 - Edge box mounts inside the existing operator cabinet.

@@ -23,6 +23,8 @@ Python 3.11 is expected. Install the crypto dependency if it is not already avai
 python -m pip install -r edge/requirements.txt
 ```
 
+The Raspberry Pi GPIO relay driver additionally needs `gpiozero` on the edge box. The logging relay driver and test suite do not require it.
+
 ## Initialize
 
 ```powershell
@@ -82,6 +84,9 @@ python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 add-gate `
   --interface-type dry-contact `
   --operator-class "barrier gate operator" `
   --hardware-id "relay-bank-1" `
+  --relay-channel 26 `
+  --relay-pulse-ms 500 `
+  --relay-cooldown-ms 1500 `
   --safety-ack
 ```
 
@@ -108,6 +113,42 @@ python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 authorize `
 ```
 
 The response includes the decision, reason, event ID, event hash, and whether relay intent is authorized.
+
+## Relay Service
+
+The relay service is a separate local process that owns GPIO access. It accepts only bounded momentary pulse requests and records actual relay pulses back into the hash-chained event log.
+
+Run a hardware-free logging relay service for development:
+
+```powershell
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 relay-service `
+  --host 127.0.0.1 `
+  --port 8766 `
+  --token local-relay-token `
+  --driver logging
+```
+
+Run with the Raspberry Pi GPIO driver on the edge box:
+
+```bash
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 relay-service \
+  --host 127.0.0.1 \
+  --port 8766 \
+  --token "$ANGEL_RELAY_TOKEN" \
+  --driver gpio
+```
+
+For `--driver gpio`, `relay_channel` is a BCM GPIO number. The relay board must be active-high and wired through normally-open contacts.
+
+Connect the HTTP authorization API to the local relay service:
+
+```powershell
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 serve `
+  --host 127.0.0.1 `
+  --port 8765 `
+  --relay-url http://127.0.0.1:8766 `
+  --relay-token local-relay-token
+```
 
 ## Signed Visitor QR Flow
 

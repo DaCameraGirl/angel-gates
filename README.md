@@ -26,6 +26,7 @@ It includes:
 - Fixed genesis event and head anchors for truncation detection.
 - Commissioning identity with local device keys, signed claims, binding artifacts, and scoped API tokens.
 - Local HTTP API for reader/controller integration.
+- Local relay service with logging and GPIO drivers for momentary relay pulses.
 - Sync delta intake for cloud-to-edge updates.
 
 Start here:
@@ -46,7 +47,7 @@ python -m unittest edge.tests.test_edge_runtime
 - Maintenance alerts tied to real controller records.
 - Cloud sync settings, workspace export, and workspace import.
 - Integration records for DoorKing, Linear, LiftMaster, custom relay controllers, and cloud APIs.
-- Retrofit controller model that records relay intent only after authorization.
+- Retrofit controller model that emits momentary relay pulses only after authorization.
 - Local-first authorization with offline/degraded mode.
 - Revocation propagation target under 30 seconds while online.
 - Tamper-evident event trail for disputes, break-ins, move-outs, and board review.

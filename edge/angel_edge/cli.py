@@ -20,7 +20,11 @@ from .commissioning import (
 )
 from .crypto_tokens import generate_keypair, load_private_key, sign_token
 from .http_api import run_server
+from .relay_service import run_relay_service
 from .store import (
+    DEFAULT_RELAY_CHANNEL,
+    DEFAULT_RELAY_COOLDOWN_MS,
+    DEFAULT_RELAY_PULSE_MS,
     EdgeError,
     add_credential,
     add_gate,
@@ -60,6 +64,9 @@ def build_parser() -> argparse.ArgumentParser:
     gate_parser.add_argument("--interface-type", required=True, choices=["dry-contact", "wiegand", "api-callback"])
     gate_parser.add_argument("--operator-class", required=True)
     gate_parser.add_argument("--hardware-id", required=True)
+    gate_parser.add_argument("--relay-channel", type=int, default=DEFAULT_RELAY_CHANNEL)
+    gate_parser.add_argument("--relay-pulse-ms", type=int, default=DEFAULT_RELAY_PULSE_MS)
+    gate_parser.add_argument("--relay-cooldown-ms", type=int, default=DEFAULT_RELAY_COOLDOWN_MS)
     gate_parser.add_argument("--safety-ack", action="store_true", help="Acknowledge certified operator and safety devices remain untouched")
 
     credential_parser = subparsers.add_parser("add-credential", help="Add or update a local credential")
@@ -127,6 +134,14 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser = subparsers.add_parser("serve", help="Run the local HTTP API")
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8765)
+    serve_parser.add_argument("--relay-url", help="Local relay service URL, for example http://127.0.0.1:8766")
+    serve_parser.add_argument("--relay-token", help="Bearer token for the local relay service")
+
+    relay_parser = subparsers.add_parser("relay-service", help="Run the local relay pulse service")
+    relay_parser.add_argument("--host", default="127.0.0.1")
+    relay_parser.add_argument("--port", type=int, default=8766)
+    relay_parser.add_argument("--token", required=True)
+    relay_parser.add_argument("--driver", choices=["logging", "gpio"], default="logging")
 
     anchor_parser = subparsers.add_parser("anchor-head", help="Record the current event-log head for upstream anchoring")
     anchor_parser.add_argument("--anchor-type", default="cloud_pending")
@@ -191,7 +206,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "serve":
-            run_server(str(db_path), args.host, args.port)
+            run_server(str(db_path), args.host, args.port, relay_url=args.relay_url, relay_token=args.relay_token)
+            return 0
+
+        if args.command == "relay-service":
+            run_relay_service(str(db_path), args.host, args.port, token=args.token, driver_name=args.driver)
             return 0
 
         with connect(db_path) as connection:
@@ -219,6 +238,9 @@ def run_db_command(connection, args: argparse.Namespace) -> None:  # noqa: ANN00
             operator_class=args.operator_class,
             hardware_id=args.hardware_id,
             safety_acknowledged=args.safety_ack,
+            relay_channel=args.relay_channel,
+            relay_pulse_ms=args.relay_pulse_ms,
+            relay_cooldown_ms=args.relay_cooldown_ms,
         )
         print_json({"ok": True, "gate_id": args.gate_id})
     elif args.command == "add-credential":

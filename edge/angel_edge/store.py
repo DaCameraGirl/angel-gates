@@ -20,6 +20,13 @@ GENESIS_EVENT_ID = "evt_genesis_v1"
 GENESIS_OCCURRED_AT = "1970-01-01T00:00:00Z"
 GENESIS_REASON = "angel_gates_event_log_genesis_v1"
 DEFAULT_REVOCATION_TARGET_SECONDS = 30
+DEFAULT_RELAY_CHANNEL = 0
+DEFAULT_RELAY_PULSE_MS = 500
+DEFAULT_RELAY_COOLDOWN_MS = 1500
+MIN_RELAY_PULSE_MS = 50
+MAX_RELAY_PULSE_MS = 5000
+MIN_RELAY_COOLDOWN_MS = 250
+MAX_RELAY_COOLDOWN_MS = 60000
 RATE_LIMIT_WINDOW_SECONDS = 3600
 RATE_LIMIT_RETENTION_SECONDS = 86400
 RATE_LIMITED_CREDENTIAL_TYPES = {"pin", "qr"}
@@ -115,6 +122,9 @@ def migrate(connection: sqlite3.Connection, edge_id: str | None = None) -> None:
           interface_type TEXT NOT NULL,
           operator_class TEXT NOT NULL,
           hardware_id TEXT NOT NULL,
+          relay_channel INTEGER NOT NULL DEFAULT 0,
+          relay_pulse_ms INTEGER NOT NULL DEFAULT 500,
+          relay_cooldown_ms INTEGER NOT NULL DEFAULT 1500,
           safety_acknowledged INTEGER NOT NULL CHECK (safety_acknowledged IN (0, 1)),
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
@@ -246,6 +256,9 @@ def migrate(connection: sqlite3.Connection, edge_id: str | None = None) -> None:
           ON rate_limit_lockouts (credential_type, gate_id, locked_until);
         """
     )
+    ensure_column(connection, "gates", "relay_channel", f"INTEGER NOT NULL DEFAULT {DEFAULT_RELAY_CHANNEL}")
+    ensure_column(connection, "gates", "relay_pulse_ms", f"INTEGER NOT NULL DEFAULT {DEFAULT_RELAY_PULSE_MS}")
+    ensure_column(connection, "gates", "relay_cooldown_ms", f"INTEGER NOT NULL DEFAULT {DEFAULT_RELAY_COOLDOWN_MS}")
     set_metadata(connection, "schema_version", "1")
     if edge_id:
         set_metadata(connection, "edge_id", edge_id)
@@ -265,6 +278,18 @@ def set_metadata(connection: sqlite3.Connection, key: str, value: str) -> None:
         "INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         (key, value),
     )
+
+
+def bounded_int(value: int, *, minimum: int, maximum: int, field: str) -> int:
+    if value < minimum or value > maximum:
+        raise EdgeError(f"{field}_must_be_between_{minimum}_and_{maximum}")
+    return value
+
+
+def ensure_column(connection: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def build_event_payload(
@@ -382,17 +407,36 @@ def add_gate(
     operator_class: str,
     hardware_id: str,
     safety_acknowledged: bool,
+    relay_channel: int = DEFAULT_RELAY_CHANNEL,
+    relay_pulse_ms: int = DEFAULT_RELAY_PULSE_MS,
+    relay_cooldown_ms: int = DEFAULT_RELAY_COOLDOWN_MS,
 ) -> None:
     if not safety_acknowledged:
         raise EdgeError("safety_acknowledgement_required")
+    relay_channel = int(relay_channel)
+    relay_pulse_ms = bounded_int(
+        int(relay_pulse_ms),
+        minimum=MIN_RELAY_PULSE_MS,
+        maximum=MAX_RELAY_PULSE_MS,
+        field="relay_pulse_ms",
+    )
+    relay_cooldown_ms = bounded_int(
+        int(relay_cooldown_ms),
+        minimum=MIN_RELAY_COOLDOWN_MS,
+        maximum=MAX_RELAY_COOLDOWN_MS,
+        field="relay_cooldown_ms",
+    )
+    if relay_channel < 0:
+        raise EdgeError("relay_channel_must_be_non_negative")
     begin_write(connection)
     now = utc_now()
     connection.execute(
         """
         INSERT INTO gates (
           id, name, site_area, provider, interface_type, operator_class,
-          hardware_id, safety_acknowledged, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          hardware_id, relay_channel, relay_pulse_ms, relay_cooldown_ms,
+          safety_acknowledged, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           site_area = excluded.site_area,
@@ -400,6 +444,9 @@ def add_gate(
           interface_type = excluded.interface_type,
           operator_class = excluded.operator_class,
           hardware_id = excluded.hardware_id,
+          relay_channel = excluded.relay_channel,
+          relay_pulse_ms = excluded.relay_pulse_ms,
+          relay_cooldown_ms = excluded.relay_cooldown_ms,
           safety_acknowledged = excluded.safety_acknowledged,
           updated_at = excluded.updated_at
         """,
@@ -411,6 +458,9 @@ def add_gate(
             interface_type,
             operator_class,
             hardware_id,
+            relay_channel,
+            relay_pulse_ms,
+            relay_cooldown_ms,
             1,
             now,
             now,
@@ -421,7 +471,14 @@ def add_gate(
         event_type="configuration",
         reason="gate_upserted",
         gate_id=gate_id,
-        extra={"name": name, "provider": provider, "interface_type": interface_type},
+        extra={
+            "name": name,
+            "provider": provider,
+            "interface_type": interface_type,
+            "relay_channel": relay_channel,
+            "relay_pulse_ms": relay_pulse_ms,
+            "relay_cooldown_ms": relay_cooldown_ms,
+        },
     )
     connection.commit()
 
@@ -778,7 +835,13 @@ def authorize(
         extra={"relay_intent": "authorized_local_decision"},
     )
     connection.commit()
-    return decision_response("allow", "authorized", event, fallback_required=False)
+    return decision_response(
+        "allow",
+        "authorized",
+        event,
+        fallback_required=False,
+        relay=relay_config_for_gate(connection, gate_id),
+    )
 
 
 def authorize_qr(
@@ -871,7 +934,13 @@ def authorize_qr(
         extra={"key_id": token.header["kid"], "relay_intent": "authorized_local_decision"},
     )
     connection.commit()
-    return decision_response("allow", "authorized_signed_qr", event, fallback_required=False)
+    return decision_response(
+        "allow",
+        "authorized_signed_qr",
+        event,
+        fallback_required=False,
+        relay=relay_config_for_gate(connection, gate_id),
+    )
 
 
 def deny_and_log(
@@ -1169,6 +1238,103 @@ def create_event_anchor(
     }
 
 
+def record_relay_pulse(
+    connection: sqlite3.Connection,
+    *,
+    gate_id: str,
+    relay_channel: int,
+    duration_ms: int,
+    cooldown_ms: int,
+    decision_event_id: str,
+    decision_event_hash: str,
+    started_at: str,
+    ended_at: str,
+    driver: str,
+) -> dict[str, Any]:
+    begin_write(connection)
+    event = append_event(
+        connection,
+        event_type="relay",
+        reason="relay_pulse",
+        gate_id=gate_id,
+        decision="allow",
+        extra={
+            "relay_channel": int(relay_channel),
+            "duration_ms": int(duration_ms),
+            "cooldown_ms": int(cooldown_ms),
+            "decision_event_id": decision_event_id,
+            "decision_event_hash": decision_event_hash,
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "driver": driver,
+        },
+    )
+    connection.commit()
+    return event
+
+
+def record_relay_suppressed(
+    connection: sqlite3.Connection,
+    *,
+    gate_id: str,
+    relay_channel: int,
+    cooldown_ms: int,
+    decision_event_id: str,
+    decision_event_hash: str,
+    suppressed_until: str,
+    driver: str,
+) -> dict[str, Any]:
+    begin_write(connection)
+    event = append_event(
+        connection,
+        event_type="relay",
+        reason="relay_pulse_suppressed_cooldown",
+        gate_id=gate_id,
+        decision="deny",
+        extra={
+            "relay_channel": int(relay_channel),
+            "cooldown_ms": int(cooldown_ms),
+            "decision_event_id": decision_event_id,
+            "decision_event_hash": decision_event_hash,
+            "suppressed_until": suppressed_until,
+            "driver": driver,
+        },
+    )
+    connection.commit()
+    return event
+
+
+def record_relay_error(
+    connection: sqlite3.Connection,
+    *,
+    gate_id: str,
+    relay_channel: int,
+    duration_ms: int,
+    decision_event_id: str,
+    decision_event_hash: str,
+    error: str,
+    driver: str,
+) -> dict[str, Any]:
+    begin_write(connection)
+    event = append_event(
+        connection,
+        event_type="relay",
+        reason="relay_pulse_error",
+        gate_id=gate_id,
+        decision="deny",
+        extra={
+            "relay_channel": int(relay_channel),
+            "duration_ms": int(duration_ms),
+            "decision_event_id": decision_event_id,
+            "decision_event_hash": decision_event_hash,
+            "error": error,
+            "driver": driver,
+        },
+    )
+    connection.commit()
+    return event
+
+
 def sync_status(connection: sqlite3.Connection) -> dict[str, Any]:
     unsynced = connection.execute("SELECT COUNT(*) AS count FROM events WHERE queued_for_sync = 1 AND synced_at IS NULL").fetchone()["count"]
     credentials = connection.execute("SELECT COUNT(*) AS count FROM credentials WHERE status = 'active'").fetchone()["count"]
@@ -1334,7 +1500,14 @@ def apply_binding_revocation(
 def apply_delta(connection: sqlite3.Connection, delta: dict[str, Any]) -> dict[str, Any]:
     applied = {"gates": 0, "credentials": 0, "credential_revocations": 0, "qr_public_keys": 0, "qr_token_revocations": 0, "binding_revocations": 0}
     for gate in delta.get("gates", []):
-        add_gate(connection, safety_acknowledged=bool(gate.get("safety_acknowledged")), **{key: gate[key] for key in ["gate_id", "name", "site_area", "provider", "interface_type", "operator_class", "hardware_id"]})
+        add_gate(
+            connection,
+            safety_acknowledged=bool(gate.get("safety_acknowledged")),
+            relay_channel=int(gate.get("relay_channel", DEFAULT_RELAY_CHANNEL)),
+            relay_pulse_ms=int(gate.get("relay_pulse_ms", DEFAULT_RELAY_PULSE_MS)),
+            relay_cooldown_ms=int(gate.get("relay_cooldown_ms", DEFAULT_RELAY_COOLDOWN_MS)),
+            **{key: gate[key] for key in ["gate_id", "name", "site_area", "provider", "interface_type", "operator_class", "hardware_id"]},
+        )
         applied["gates"] += 1
     for credential in delta.get("credentials", []):
         add_credential(connection, **credential)
@@ -1359,8 +1532,15 @@ def apply_delta(connection: sqlite3.Connection, delta: dict[str, Any]) -> dict[s
     return applied
 
 
-def decision_response(decision: str, reason: str, event: dict[str, Any], *, fallback_required: bool) -> dict[str, Any]:
-    return {
+def decision_response(
+    decision: str,
+    reason: str,
+    event: dict[str, Any],
+    *,
+    fallback_required: bool,
+    relay: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    response = {
         "decision": decision,
         "reason": reason,
         "fallback_required": fallback_required,
@@ -1369,10 +1549,33 @@ def decision_response(decision: str, reason: str, event: dict[str, Any], *, fall
         "event_hash": event["event_hash"],
         "occurred_at": event["occurred_at"],
     }
+    if decision == "allow" and relay is not None:
+        response["relay"] = relay
+    return response
 
 
 def gate_exists(connection: sqlite3.Connection, gate_id: str) -> bool:
     return connection.execute("SELECT 1 FROM gates WHERE id = ?", (gate_id,)).fetchone() is not None
+
+
+def relay_config_for_gate(connection: sqlite3.Connection, gate_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, hardware_id, interface_type, relay_channel, relay_pulse_ms, relay_cooldown_ms
+        FROM gates
+        WHERE id = ?
+        """,
+        (gate_id,),
+    ).fetchone()
+    if row is None or row["interface_type"] != "dry-contact":
+        return None
+    return {
+        "gate_id": row["id"],
+        "hardware_id": row["hardware_id"],
+        "channel": int(row["relay_channel"]),
+        "pulse_ms": int(row["relay_pulse_ms"]),
+        "cooldown_ms": int(row["relay_cooldown_ms"]),
+    }
 
 
 def gate_in_scope(scope_json: str, gate_id: str) -> bool:

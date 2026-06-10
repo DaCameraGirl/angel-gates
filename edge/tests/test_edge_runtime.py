@@ -21,6 +21,7 @@ from edge.angel_edge.commissioning import (
     verify_device_signature,
 )
 from edge.angel_edge.crypto_tokens import generate_keypair, load_private_key, sign_token
+from edge.angel_edge.drivers.relay import LoggingRelayDriver, RelayController, relay_payload_from_authorization
 from edge.angel_edge.store import (
     EdgeError,
     add_credential,
@@ -97,6 +98,66 @@ class EdgeRuntimeTest(unittest.TestCase):
         verification = verify_event_log(self.connection)
         self.assertTrue(verification["ok"])
         self.assertGreaterEqual(verification["checked"], 5)
+
+    def test_relay_controller_records_pulse_and_suppresses_duplicate(self) -> None:
+        add_gate(
+            self.connection,
+            gate_id="front",
+            name="Front Gate",
+            site_area="Entry",
+            provider="DoorKing",
+            interface_type="dry-contact",
+            operator_class="barrier",
+            hardware_id="relay-1",
+            relay_channel=26,
+            relay_pulse_ms=50,
+            relay_cooldown_ms=1500,
+            safety_acknowledged=True,
+        )
+        add_credential(
+            self.connection,
+            credential_id="cred-pin-relay",
+            principal_id="unit-106",
+            principal_label="Unit 106",
+            principal_type="resident",
+            credential_type="pin",
+            credential_value="121212",
+            gate_scope=["front"],
+        )
+
+        allowed = authorize(
+            self.connection,
+            credential_type="pin",
+            credential_value="121212",
+            gate_id="front",
+        )
+        self.assertEqual("allow", allowed["decision"])
+        self.assertEqual(
+            {"gate_id": "front", "hardware_id": "relay-1", "channel": 26, "pulse_ms": 50, "cooldown_ms": 1500},
+            allowed["relay"],
+        )
+
+        driver = LoggingRelayDriver()
+        controller = RelayController(db_path=str(self.db_path), driver=driver)
+        pulse_payload = relay_payload_from_authorization(allowed)
+        self.assertIsNotNone(pulse_payload)
+
+        pulsed = controller.request_pulse(pulse_payload or {})
+        self.assertEqual("pulsed", pulsed["status"])
+        self.assertEqual(1, len(driver.pulses))
+
+        suppressed = controller.request_pulse(pulse_payload or {})
+        self.assertEqual("suppressed_cooldown", suppressed["status"])
+        self.assertEqual(1, len(driver.pulses))
+
+        reasons = [
+            row["reason"]
+            for row in self.connection.execute(
+                "SELECT reason FROM events WHERE event_type = 'relay' ORDER BY sequence ASC"
+            )
+        ]
+        self.assertEqual(["relay_pulse", "relay_pulse_suppressed_cooldown"], reasons)
+        self.assertTrue(verify_event_log(self.connection)["ok"])
 
     def test_pin_rate_limit_locks_gate_persists_and_expires(self) -> None:
         add_credential(

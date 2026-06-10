@@ -49,6 +49,19 @@ Optional attached context:
 - sync cursor
 - relay intent
 
+## Relay Execution
+
+Authorization and relay control are separate processes.
+
+The HTTP authorization service commits an allow event first. If that response contains relay intent, it dispatches a bounded pulse request to the local relay service. The relay service owns the driver, enforces per-gate/channel cooldown, emits one momentary pulse, and records a separate `relay` event linked back to the authorization event.
+
+This keeps two facts distinct:
+
+- Authorization decision: the edge decided a credential was allowed.
+- Physical effect: the relay service actually emitted, suppressed, or failed a pulse.
+
+The runtime has no hold-open command. The GPIO driver uses active-high output and turns the channel off in every exit path. Pi acceptance testing must verify the selected relay HAT matches that electrical assumption.
+
 ## Offline And Degraded Mode
 
 The gate cannot depend on cloud reachability.

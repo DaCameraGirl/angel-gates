@@ -101,6 +101,6 @@ Current answer: local API requires scoped bearer tokens even on localhost.
 
 Risk: a software or wiring bug holds the gate open.
 
-Current answer: relay driver must be de-energized by default and emit intent only after allow.
+Current answer: relay control is split into a local relay service that owns GPIO and accepts only momentary pulse requests from the authorization service. The GPIO driver initializes active-high outputs off, pulses for a bounded duration, and turns off in a `finally` block. The runtime has no hold-open command. Duplicate allow bursts are suppressed by per-gate/channel cooldown. Actual pulses and cooldown suppressions write `relay` events into the hash-chained log.
 
-Gap: real relay driver and Pi acceptance test with audible relay click are not built yet.
+Gap: Pi acceptance testing must verify the selected relay HAT is active-high, normally-open, de-energized by default, and audibly clicks only on allow cases.

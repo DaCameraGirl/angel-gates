@@ -8,10 +8,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from .drivers.relay import dispatch_relay_pulse_async
 from . import store
 
 
-def run_server(db_path: str, host: str, port: int) -> None:
+def run_server(
+    db_path: str,
+    host: str,
+    port: int,
+    *,
+    relay_url: str | None = None,
+    relay_token: str | None = None,
+) -> None:
     class Handler(BaseHTTPRequestHandler):
         server_version = "AngelEdge/0.1"
 
@@ -71,6 +79,11 @@ def run_server(db_path: str, host: str, port: int) -> None:
                         media=payload.get("media") or {},
                         request=payload,
                     )
+                result["relay_dispatch"] = dispatch_relay_pulse_async(
+                    relay_url=relay_url,
+                    relay_token=relay_token,
+                    authorization_result=result,
+                )
                 self.send_json(200, result)
                 return
             if parsed.path == "/sync/delta":
