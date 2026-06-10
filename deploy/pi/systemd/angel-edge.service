@@ -1,0 +1,21 @@
+[Unit]
+Description=Angel Gates Edge HTTP API
+After=network-online.target angel-edge-commissioning.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=angel
+Group=angel
+EnvironmentFile=/etc/angel-gates/edge.env
+WorkingDirectory=/opt/angel-gates
+ExecStart=/opt/angel-gates/deploy/pi/bin/run-edge-api.sh
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ReadWritePaths=/var/lib/angel-edge /var/log/angel-edge
+
+[Install]
+WantedBy=multi-user.target

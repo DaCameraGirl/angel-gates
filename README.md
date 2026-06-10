@@ -4,7 +4,7 @@
 
 Edge-first gate access and chargeback evidence for properties with existing barrier-arm gates.
 
-**Status:** Edge runtime shipped | Commissioning shipped | Cloud witness shipped | Pilot acceptance runner shipped | Relay driver shipped | QR scanner shipped | Camera capture shipped | Pi image pending
+**Status:** Edge runtime shipped | Commissioning shipped | Cloud witness shipped | Pilot acceptance runner shipped | Relay driver shipped | QR scanner shipped | Camera capture shipped | Pi first-boot package shipped
 
 ## For Developers
 
@@ -37,6 +37,7 @@ It includes:
 - QR scanner service for stdin, serial, and Linux evdev scanner input.
 - RTSP camera capture service that records short evidence clips after gate events without blocking authorization.
 - Pilot acceptance runner for a live edge service over LAN.
+- Raspberry Pi first-boot package with systemd services, device-key directory setup, commissioning payload writer, and watchdog config.
 - Sync delta intake for cloud-to-edge updates.
 
 Start here:
@@ -103,6 +104,7 @@ node --check src/app.js
 - `styles.css` - responsive industrial operations UI.
 - `src/app.js` - dashboard shell, direct edge API panel, local workspace forms, audit events, export, and import.
 - `edge/` - local edge controller runtime and tests.
+- `deploy/pi/` - Raspberry Pi first-boot setup, systemd units, env template, and service runners.
 - `docs/EDGE_ARCHITECTURE.md` - edge-first product architecture.
 - `docs/COMMISSIONING.md` - installer-facing commissioning and device identity flow.
 - `docs/ROADMAP.md` - shipped, next, and later work with rationale.

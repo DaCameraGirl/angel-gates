@@ -44,6 +44,12 @@ The GPIO driver assumes an active-high relay board wired through normally-open c
 - Existing dial pad remains in place as fallback.
 - Existing loops, detector modules, photo eyes, reversing edges, and operator safety logic remain untouched.
 
+## Pi First-Boot Package
+
+The installable Pi package lives in `deploy/pi/`.
+
+It creates `/var/lib/angel-edge` with restricted permissions, installs systemd services for the edge API and optional relay/camera/scanner/anchor publisher processes, writes the first-boot commissioning payload, and configures systemd hardware watchdog settings.
+
 ## LPR Geometry Note
 
 Georgia and South Carolina are rear-plate-only states. Entry LPR cannot assume a front plate.

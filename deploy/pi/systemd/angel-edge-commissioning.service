@@ -1,0 +1,20 @@
+[Unit]
+Description=Angel Gates first-boot commissioning payload
+After=local-fs.target
+Before=angel-edge.service
+
+[Service]
+Type=oneshot
+User=angel
+Group=angel
+EnvironmentFile=/etc/angel-gates/edge.env
+WorkingDirectory=/opt/angel-gates
+ExecStart=/opt/angel-gates/deploy/pi/bin/write-commissioning-payload.sh
+RemainAfterExit=true
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ReadWritePaths=/var/lib/angel-edge
+
+[Install]
+WantedBy=multi-user.target
