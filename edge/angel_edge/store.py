@@ -1459,6 +1459,7 @@ def record_rate_limit_failure(
 
     now = datetime.now(UTC)
     occurred_at = format_utc(now)
+    # Failures intentionally age out by time window, not by successful auth; otherwise a valid entry could reset a brute-force run.
     window_start = format_utc(now - timedelta(seconds=RATE_LIMIT_WINDOW_SECONDS))
     cleanup_before = format_utc(now - timedelta(seconds=RATE_LIMIT_RETENTION_SECONDS))
     connection.execute("DELETE FROM rate_limit_failures WHERE occurred_at < ?", (cleanup_before,))

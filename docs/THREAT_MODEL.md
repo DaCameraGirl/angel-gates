@@ -71,7 +71,7 @@ Gap: cloud-side anchor storage and fork rejection are not built yet.
 
 ### Clock Manipulation
 
-Risk: an attacker or bad OS image moves the edge clock backward, making expired QR tokens look valid or making event timestamps unreliable.
+Risk: an attacker or bad OS image moves the edge clock backward, making expired QR tokens look valid, weakening `locked_until` rate-limit enforcement, or making event timestamps unreliable.
 
 Current answer: QR verification allows only a small skew tolerance for normal drift.
 
