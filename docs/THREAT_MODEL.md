@@ -25,7 +25,7 @@ Current answer: failed PIN attempts are stored in SQLite and counted over a slid
 
 Risk: an attacker spams malformed or revoked QR payloads to burn CPU or probe visitor-pass behavior.
 
-Current answer: QR failures use the same persistent rate-limit path as PIN failures. After lockout, the edge denies before signature verification, revocation lookup, or token usage checks.
+Current answer: QR failures use the same persistent rate-limit path as PIN failures. After lockout, the edge denies before signature verification, revocation lookup, or token usage checks. Scanner and HTTP authorization request logs store a QR fingerprint instead of the raw token value.
 
 ### Stolen Bearer Token
 

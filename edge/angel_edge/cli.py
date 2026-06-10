@@ -21,6 +21,7 @@ from .commissioning import (
 from .crypto_tokens import generate_keypair, load_private_key, sign_token
 from .http_api import run_server
 from .relay_service import run_relay_service
+from .scanner import ScannerError, run_scanner_service
 from .store import (
     DEFAULT_RELAY_CHANNEL,
     DEFAULT_RELAY_COOLDOWN_MS,
@@ -143,6 +144,16 @@ def build_parser() -> argparse.ArgumentParser:
     relay_parser.add_argument("--token", required=True)
     relay_parser.add_argument("--driver", choices=["logging", "gpio"], default="logging")
 
+    scanner_parser = subparsers.add_parser("scanner-service", help="Run a QR scanner input service")
+    scanner_parser.add_argument("--edge-url", default="http://127.0.0.1:8765")
+    scanner_parser.add_argument("--edge-token", required=True)
+    scanner_parser.add_argument("--gate-id", required=True)
+    scanner_parser.add_argument("--scanner-id", default="scanner-1")
+    scanner_parser.add_argument("--input", choices=["stdin", "serial", "evdev"], default="stdin", dest="input_mode")
+    scanner_parser.add_argument("--serial-port")
+    scanner_parser.add_argument("--baudrate", type=int, default=9600)
+    scanner_parser.add_argument("--evdev-path")
+
     anchor_parser = subparsers.add_parser("anchor-head", help="Record the current event-log head for upstream anchoring")
     anchor_parser.add_argument("--anchor-type", default="cloud_pending")
     anchor_parser.add_argument("--upstream-ref")
@@ -213,6 +224,19 @@ def main(argv: list[str] | None = None) -> int:
             run_relay_service(str(db_path), args.host, args.port, token=args.token, driver_name=args.driver)
             return 0
 
+        if args.command == "scanner-service":
+            run_scanner_service(
+                edge_url=args.edge_url,
+                edge_token=args.edge_token,
+                gate_id=args.gate_id,
+                scanner_id=args.scanner_id,
+                input_mode=args.input_mode,
+                serial_port=args.serial_port,
+                baudrate=args.baudrate,
+                evdev_path=args.evdev_path,
+            )
+            return 0
+
         with connect(db_path) as connection:
             if args.command == "init":
                 migrate(connection, edge_id=args.edge_id)
@@ -221,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
                 migrate(connection)
                 run_db_command(connection, args)
         return 0
-    except (EdgeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (EdgeError, ScannerError, ValueError, KeyError, json.JSONDecodeError) as exc:
         print_json({"ok": False, "error": str(exc)}, stream=sys.stderr)
         return 1
 

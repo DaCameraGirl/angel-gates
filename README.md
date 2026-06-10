@@ -4,7 +4,7 @@
 
 Edge-first gate access and chargeback evidence for properties with existing barrier-arm gates.
 
-**Status:** Edge runtime shipped | Commissioning shipped | Rate limiting shipped | Relay driver shipped | Camera capture pending | Pi acceptance test pending
+**Status:** Edge runtime shipped | Commissioning shipped | Rate limiting shipped | Relay driver shipped | QR scanner shipped | Camera capture pending | Pi acceptance test pending
 
 ## For Developers
 
@@ -33,6 +33,7 @@ It includes:
 - Commissioning identity with local device keys, signed claims, binding artifacts, and scoped API tokens.
 - Local HTTP API for reader/controller integration.
 - Local relay service with logging and GPIO drivers for momentary relay pulses.
+- QR scanner service for stdin, serial, and Linux evdev scanner input.
 - Sync delta intake for cloud-to-edge updates.
 
 Start here:

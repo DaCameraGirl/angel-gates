@@ -184,6 +184,48 @@ python -m edge.angel_edge issue-qr-token `
 
 The edge can authorize that QR without cloud reachability as long as the public key and revocation list are cached.
 
+## QR Scanner Service
+
+The scanner service reads QR text from a local reader and submits it to the same `POST /authorize` path as every other edge client. It does not verify or authorize credentials itself.
+
+Run a keyboard-wedge or bench scanner that sends scans to stdin:
+
+```powershell
+python -m edge.angel_edge scanner-service `
+  --edge-url http://127.0.0.1:8765 `
+  --edge-token local-edge-token `
+  --gate-id front `
+  --scanner-id pedestal-qr-1 `
+  --input stdin
+```
+
+Run a serial or USB CDC scanner:
+
+```bash
+python -m edge.angel_edge scanner-service \
+  --edge-url http://127.0.0.1:8765 \
+  --edge-token "$ANGEL_EDGE_TOKEN" \
+  --gate-id front \
+  --scanner-id pedestal-qr-1 \
+  --input serial \
+  --serial-port /dev/ttyACM0 \
+  --baudrate 9600
+```
+
+Run a Linux keyboard-event scanner:
+
+```bash
+python -m edge.angel_edge scanner-service \
+  --edge-url http://127.0.0.1:8765 \
+  --edge-token "$ANGEL_EDGE_TOKEN" \
+  --gate-id front \
+  --scanner-id pedestal-qr-1 \
+  --input evdev \
+  --evdev-path /dev/input/event4
+```
+
+Serial mode requires `pyserial` on the edge box. Evdev mode requires Linux input-device permissions and the correct scanner device path.
+
 ## Local HTTP API
 
 ```powershell

@@ -87,6 +87,21 @@ def mask_credential(credential_type: str, value: str) -> str:
     return f"{normalized[:2]}...{normalized[-2:]}"
 
 
+def credential_request_display(credential_type: str, value: str) -> str:
+    if credential_type == "qr":
+        digest = hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()[:16]
+        return f"qr_sha256:{digest}"
+    return mask_credential(credential_type, value)
+
+
+def sanitize_authorize_request(payload: dict[str, Any]) -> dict[str, Any]:
+    sanitized = dict(payload)
+    credential_type = str(sanitized.get("credential_type") or "")
+    if "credential_value" in sanitized:
+        sanitized["credential_value"] = credential_request_display(credential_type, str(sanitized["credential_value"]))
+    return sanitized
+
+
 def canonical_json(data: dict[str, Any]) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 

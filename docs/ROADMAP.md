@@ -14,12 +14,12 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - Commissioning control plane: device key, claim challenge, binding artifact, local factory reset, and binding revocation exist.
 - PIN/QR rate limits: failed PIN and QR attempts now create persistent gate/type and credential-scope lockouts with audit events.
 - Relay driver boundary: allow decisions can dispatch momentary relay pulses through a local relay service with cooldown and relay audit events.
+- QR scanner input: stdin, serial, and Linux evdev scanner modes submit QR payloads to the edge authorization API without creating another decision engine.
 
 ## Next
 
 - Cloud sync and anchor publishing: edge should publish anchors every 100 events, every 5 minutes, and immediately on revocation because cloud witness is what makes truncation externally detectable.
 - Pilot acceptance test: run the real edge service over LAN against PIN, QR, plate, bad bearer, revoked credential, expired QR, low-confidence plate, event replay, anchor, and verify-log paths.
-- QR scanner driver: ingest USB HID or serial scanner output and submit QR payloads to the edge authorization path.
 - Camera clip capture: attach a short RTSP video evidence window to each gate event because damaged-arm chargeback is the first sales wedge.
 - First-boot Pi image: package systemd services, key directory permissions, local API, watchdog, and commissioning payload display.
 - SD-card-loss rebind: support replacing an edge identity for an existing property/gate slot while preserving old event history.

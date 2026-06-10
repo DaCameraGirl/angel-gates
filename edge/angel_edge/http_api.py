@@ -77,7 +77,7 @@ def run_server(
                         gate_id=payload.get("gate_id", ""),
                         confidence=payload.get("confidence"),
                         media=payload.get("media") or {},
-                        request=payload,
+                        request=store.sanitize_authorize_request(payload),
                     )
                 result["relay_dispatch"] = dispatch_relay_pulse_async(
                     relay_url=relay_url,
