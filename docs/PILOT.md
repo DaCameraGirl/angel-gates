@@ -14,8 +14,9 @@ This is the working plan for a first live property pilot. Details here are field
 ## Pain Points To Validate
 
 - Dial-pad backup process is slow and produces poor accountability.
-- Gate arm replacements are estimated around $2,500/year with limited chargeback evidence.
+- Gate arm damage, open-gate periods, and related service calls may cost roughly $4,000 to $8,000/year; validate this from maintenance records before using it in sales copy.
 - Managers need a reliable way to answer "who came through at this time?"
+- Managers need evidence strong enough to charge back damaged arms to the responsible unit or visitor.
 - The existing operator and safety system should remain in place.
 
 ## Pilot Scope
@@ -23,7 +24,8 @@ This is the working plan for a first live property pilot. Details here are field
 - Duration: 90 days free.
 - Hardware: one edge box at one gate.
 - Credentials: QR and PIN only.
-- LPR: out of pilot scope unless the site demands it after QR/PIN is proven.
+- Camera evidence: in pilot scope because damaged-arm chargeback is the wedge.
+- LPR: out of pilot scope unless the site demands it after QR/PIN and camera evidence are proven.
 - Install path: licensed gate installer or maintenance lead under installer guidance.
 - Existing dial pad remains as fallback.
 - Residents who opt in use QR/PIN flow; everyone else can keep using the old path.
@@ -34,6 +36,7 @@ This is the working plan for a first live property pilot. Details here are field
 - Median time per entry compared with dial-pad baseline.
 - Number of denied attempts captured with reason.
 - Number of gate-arm incident windows where event evidence identifies likely responsible unit/visitor.
+- Number and value of chargeback opportunities created from event/video evidence.
 - Manager satisfaction after two weeks and at 90 days.
 - Installer feedback on cabinet wiring, commissioning, and support burden.
 
@@ -42,6 +45,7 @@ This is the working plan for a first live property pilot. Details here are field
 - Signed pilot agreement.
 - Permission to install one edge box and credential reader without modifying safety devices.
 - Permission to use anonymized operational metrics.
+- Permission to report validated savings and chargeback recovery numbers if the pilot succeeds.
 - Permission to use the property as a case study if the pilot succeeds.
 - Intro to a regional decision-maker if success metrics are met.
 
@@ -52,6 +56,7 @@ This is the working plan for a first live property pilot. Details here are field
 - Dashboard token is scoped and expires.
 - PIN and QR allow cases click the relay.
 - Deny cases do not click the relay.
+- Allow/deny events can be matched to camera clips for the same time window.
 - Binding revocation stops authorization.
 - Verify-log passes after the pilot test battery.
 - Factory reset returns edge to unclaimed state.

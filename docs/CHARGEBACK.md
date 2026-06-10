@@ -34,7 +34,7 @@ The first pilot can support a manual incident packet:
 
 - Manager chooses a time window.
 - Dashboard exports matching events as JSON/CSV.
-- Photos or video clips are attached manually if cameras are present.
+- Camera clips are attached manually until automated clip capture and report assembly exist.
 
 Automated PDF generation can come after the pilot proves the evidence workflow.
 

@@ -99,6 +99,7 @@ node --check src/app.js
 - `docs/PILOT.md` - first-property pilot plan and success metrics.
 - `docs/HARDWARE.md` - physical bill of materials and wiring boundary.
 - `docs/PRICING.md` - working pricing model and competitive positioning.
+- `docs/MARKETING.md` - first-property marketing plan, pitch, and proof points.
 - `docs/THREAT_MODEL.md` - security risks, mitigations, and gaps.
 - `docs/CHARGEBACK.md` - incident and damaged-arm evidence workflow.
 - `docs/SAFETY_BOUNDARY.md` - UL 294 / UL 325 boundary language.

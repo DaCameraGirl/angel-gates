@@ -20,6 +20,7 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - Cloud sync and anchor publishing: edge should publish anchors every 100 events, every 5 minutes, and immediately on revocation because cloud witness is what makes truncation externally detectable.
 - Pilot acceptance test: run the real edge service over LAN against PIN, QR, plate, bad bearer, revoked credential, expired QR, low-confidence plate, event replay, anchor, and verify-log paths.
 - QR scanner driver: ingest USB HID or serial scanner output and submit QR payloads to the edge authorization path.
+- Camera clip capture: attach a short RTSP video evidence window to each gate event because damaged-arm chargeback is the first sales wedge.
 - First-boot Pi image: package systemd services, key directory permissions, local API, watchdog, and commissioning payload display.
 - SD-card-loss rebind: support replacing an edge identity for an existing property/gate slot while preserving old event history.
 - Cloud binding and token rotation: use the device key as root identity and rotate dashboard, sync, and anchor tokens as leaves.

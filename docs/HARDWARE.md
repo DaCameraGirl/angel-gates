@@ -17,7 +17,8 @@ Working target cost for the edge box is roughly $120 to $180 in parts before enc
 
 - QR reader: embedded 2D barcode scanner rated for phone-screen/LCD reading.
 - PIN/keypad: Wiegand, USB, serial, or GPIO keypad depending on pedestal constraints.
-- Optional LPR camera: IP camera or LPR-capable camera, deferred until phase two.
+- IP camera with RTSP: required for damaged-arm evidence and chargeback workflow.
+- Optional LPR-capable camera: deferred until phase two.
 - Optional non-safety presence input: microwave radar or photo sensor wired only to the edge for wake/capture hints.
 - Connectivity: Ethernet, Wi-Fi, or LTE.
 
