@@ -13,8 +13,8 @@ Gate arms get knocked off or damaged. Managers often know the approximate time w
 3. System shows every entry and exit event in that window.
 4. Events include credential, unit or visitor, gate, timestamp, decision, reason, and plate/photo/clip references when available.
 5. Manager tags likely responsible event.
-6. System exports an incident report PDF.
-7. Report can attach to an invoice, resident notice, insurer packet, or board packet.
+6. System exports an incident report packet.
+7. Report packet can attach to an invoice, resident notice, insurer packet, or board packet.
 
 ## Report Contents
 
@@ -28,16 +28,24 @@ Gate arms get knocked off or damaged. Managers often know the approximate time w
 - Event hash and latest anchor hash.
 - Manager notes.
 
-## Pilot Version
+## Pilot Export
 
-The first pilot can support a manual incident packet:
+The edge can export an incident packet directly from the local SQLite event log:
 
-- Manager chooses a time window.
-- Dashboard exports matching events as JSON/CSV.
-- Automated camera capture records local clip references and capture failures in the edge event log.
-- Report assembly can still start as manual JSON/CSV export until PDF generation exists.
+```bash
+python -m edge.angel_edge --db "$ANGEL_EDGE_DB" export-incident-report \
+  --gate-id "$INCIDENT_GATE_ID" \
+  --started-at "$INCIDENT_STARTED_AT" \
+  --ended-at "$INCIDENT_ENDED_AT" \
+  --property-label "$PROPERTY_LABEL" \
+  --selected-event-id "$SELECTED_EVENT_ID" \
+  --manager-notes-file incident-notes.txt \
+  --json-output incident-report.json \
+  --csv-output incident-events.csv \
+  --markdown-output incident-report.md
+```
 
-Automated PDF generation can come after the pilot proves the evidence workflow.
+JSON is the integrity export. CSV is the manager-readable event table. Markdown is the printable packet for invoice, resident notice, insurer, or board review. Automated PDF generation can come after the pilot proves the evidence workflow.
 
 ## Export Shape
 
@@ -56,12 +64,16 @@ The JSON export must carry verification data from day one:
 - `events[].decision`
 - `events[].reason`
 - `events[].media`
+- `events[].media_refs`
+- `events[].extra`
+- `events[].linked_decision_event_id`
+- `events[].linked_decision_event_hash`
 - `latest_anchor.sequence`
 - `latest_anchor.event_hash`
 - `latest_anchor.anchored_at`
 - `latest_anchor.upstream_ref`
 
-CSV can be the manager-readable companion format, but JSON is the integrity format. A recipient should be able to verify the selected events against the hash chain and latest known anchor.
+The export includes camera and relay evidence linked to access events by decision event ID/hash. A recipient should be able to verify the selected events against the hash chain and latest known anchor.
 
 ## Why It Sells
 

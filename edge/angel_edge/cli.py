@@ -22,6 +22,7 @@ from .commissioning import (
 from .camera_service import run_camera_service
 from .crypto_tokens import generate_keypair, load_private_key, sign_token
 from .http_api import run_server
+from .incident_report import build_incident_report, incident_report_csv, incident_report_markdown
 from .pilot_acceptance import PilotAcceptanceError, run_pilot_acceptance
 from .rebind import RebindError
 from . import rebind
@@ -134,6 +135,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     events_parser = subparsers.add_parser("events", help="Print recent events")
     events_parser.add_argument("--limit", type=int, default=20)
+
+    incident_parser = subparsers.add_parser("export-incident-report", help="Export a damaged-arm incident report")
+    incident_parser.add_argument("--gate-id", required=True)
+    incident_parser.add_argument("--started-at", required=True, help="Incident window start, ISO-8601 UTC preferred")
+    incident_parser.add_argument("--ended-at", required=True, help="Incident window end, ISO-8601 UTC preferred")
+    incident_parser.add_argument("--property-id")
+    incident_parser.add_argument("--property-label")
+    incident_parser.add_argument("--selected-event-id")
+    incident_parser.add_argument("--manager-notes")
+    incident_parser.add_argument("--manager-notes-file")
+    incident_parser.add_argument("--json-output", help="Write integrity JSON report to this path")
+    incident_parser.add_argument("--csv-output", help="Write manager-readable CSV companion to this path")
+    incident_parser.add_argument("--markdown-output", help="Write printable Markdown report to this path")
 
     synced_parser = subparsers.add_parser("mark-events-synced", help="Mark queued events as synced")
     synced_parser.add_argument("--through-sequence", type=int)
@@ -502,6 +516,34 @@ def run_db_command(connection, args: argparse.Namespace) -> None:  # noqa: ANN00
         print_json(verify_event_log(connection))
     elif args.command == "events":
         print_json({"events": list_events(connection, limit=args.limit)})
+    elif args.command == "export-incident-report":
+        manager_notes = args.manager_notes
+        if args.manager_notes_file:
+            manager_notes = Path(args.manager_notes_file).read_text(encoding="utf-8")
+        report = build_incident_report(
+            connection,
+            gate_id=args.gate_id,
+            started_at=args.started_at,
+            ended_at=args.ended_at,
+            property_id=args.property_id,
+            property_label=args.property_label,
+            selected_event_id=args.selected_event_id,
+            manager_notes=manager_notes,
+        )
+        outputs = {}
+        if args.json_output:
+            write_text_output(args.json_output, json.dumps(report, indent=2, sort_keys=True) + "\n")
+            outputs["json_output"] = args.json_output
+        if args.csv_output:
+            write_text_output(args.csv_output, incident_report_csv(report))
+            outputs["csv_output"] = args.csv_output
+        if args.markdown_output:
+            write_text_output(args.markdown_output, incident_report_markdown(report))
+            outputs["markdown_output"] = args.markdown_output
+        if outputs:
+            print_json({"ok": True, "summary": report["summary"], "outputs": outputs})
+        else:
+            print_json(report)
     elif args.command == "mark-events-synced":
         mark_events_synced(connection, through_sequence=args.through_sequence)
         print_json({"ok": True})
@@ -534,3 +576,9 @@ def run_db_command(connection, args: argparse.Namespace) -> None:  # noqa: ANN00
 
 def print_json(payload: dict, stream=None) -> None:  # noqa: ANN001
     print(json.dumps(payload, indent=2, sort_keys=True), file=stream or sys.stdout)
+
+
+def write_text_output(path: str, content: str) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(content, encoding="utf-8")

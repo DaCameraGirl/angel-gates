@@ -317,6 +317,25 @@ The same check is available over the local API for installer acceptance:
 curl -H "Authorization: Bearer $ANGEL_INSTALLER_TOKEN" http://127.0.0.1:8765/verify-log
 ```
 
+## Export An Incident Report
+
+Managers can export a damaged-arm incident packet from a gate and time window. The JSON report carries the integrity data, the CSV is the manager-readable event table, and the Markdown file is the printable packet for invoice, resident notice, insurer, or board review.
+
+```bash
+python -m edge.angel_edge --db "$ANGEL_EDGE_DB" export-incident-report \
+  --gate-id "$INCIDENT_GATE_ID" \
+  --started-at "$INCIDENT_STARTED_AT" \
+  --ended-at "$INCIDENT_ENDED_AT" \
+  --property-label "$PROPERTY_LABEL" \
+  --selected-event-id "$SELECTED_EVENT_ID" \
+  --manager-notes-file incident-notes.txt \
+  --json-output incident-report.json \
+  --csv-output incident-events.csv \
+  --markdown-output incident-report.md
+```
+
+The report includes access, relay, and camera events for the window, plus linked relay/camera evidence that references an access decision event ID and hash. It does not invent a responsible party; the manager selects the likely event from the real log.
+
 ## Anchor The Current Head
 
 Cloud sync should periodically store the current edge head hash and sequence. The local command records an anchor without publishing it:

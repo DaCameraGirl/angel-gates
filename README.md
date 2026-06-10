@@ -37,6 +37,7 @@ It includes:
 - Local relay service with logging and GPIO drivers for momentary relay pulses.
 - QR scanner service for stdin, serial, and Linux evdev scanner input.
 - RTSP camera capture service that records short evidence clips after gate events without blocking authorization.
+- Chargeback incident export that turns gate/time-window event evidence into JSON, CSV, and printable Markdown packets.
 - Pilot acceptance runner for a live edge service over LAN.
 - Raspberry Pi first-boot package with systemd services, device-key directory setup, commissioning payload writer, and watchdog config.
 - Sync delta intake for cloud-to-edge updates.

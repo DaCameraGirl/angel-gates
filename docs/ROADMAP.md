@@ -21,6 +21,7 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - First-boot Pi package: setup script, systemd units, environment template, commissioning payload writer, key-directory permissions, and watchdog manager config.
 - SD-card-loss rebind: cloud registry helpers supersede the old binding, preserve history reference, and mint a new binding artifact for the replacement device identity.
 - LPR pilot plan: rear-plate-aware geometry, shadow-mode metrics, confidence fallback, and privacy/retention boundaries are documented for phase two.
+- Chargeback incident export: gate/time-window reports can export integrity JSON, manager CSV, and printable Markdown from real edge events with linked camera/relay evidence.
 
 ## Next
 
@@ -29,7 +30,7 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 ## Later
 
 - LPR production workflow: implement rear-plate-aware capture and assisted authorization only after QR/PIN proves the first pilot.
-- Chargeback reports: turn event/photo windows into incident packets for damaged gate arms and unauthorized access disputes.
+- Chargeback PDF generation: turn exported incident packets into polished PDFs after the pilot proves the workflow.
 - Multi-tenant SaaS cloud: add property tenants, user roles, billing, support tools, and cloud-side anchor storage.
 - Intercom/video call: only after the access/audit product is working, because multifamily video workflows are a different competitive set.
 - Installer mobile app: defer until the dashboard role-gated commissioning page proves the workflow.
