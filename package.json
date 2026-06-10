@@ -1,0 +1,9 @@
+{
+  "name": "angel-gates",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modern access authorization console for gated property workflows.",
+  "scripts": {
+    "check": "node --check src/app.js"
+  }
+}

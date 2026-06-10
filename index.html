@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Angel Gates Access Console</title>
+    <meta
+      name="description"
+      content="Angel Gates is an access authorization console for resident access, visitor passes, credential decisions, audit logs, maintenance alerts, cloud handoff, and retrofit gate controller workflows."
+    >
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="src/app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="rail" aria-label="Primary navigation">
+        <a class="brand" href="#overview" aria-label="Angel Gates overview">
+          <span class="brand-mark">AG</span>
+          <span>
+            <strong>Angel Gates</strong>
+            <small>Access Console</small>
+          </span>
+        </a>
+        <nav class="nav-list" id="primary-nav"></nav>
+        <div class="rail-status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="rail-sync-status">Local workspace</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="section-kicker">Manager Dashboard</p>
+            <h1 id="section-title">Access authorization layer</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="secondary-button" id="export-workspace-button" type="button">Export Workspace</button>
+            <button class="secondary-button danger" id="reset-workspace-button" type="button">Clear Local Workspace</button>
+          </div>
+        </header>
+
+        <section class="metric-strip" aria-label="Workspace counts">
+          <article>
+            <span id="metric-gates">0</span>
+            <p>Controllers</p>
+          </article>
+          <article>
+            <span id="metric-residents">0</span>
+            <p>Residents</p>
+          </article>
+          <article>
+            <span id="metric-passes">0</span>
+            <p>Visitor Passes</p>
+          </article>
+          <article>
+            <span id="metric-audits">0</span>
+            <p>Audit Events</p>
+          </article>
+        </section>
+
+        <div id="view-root"></div>
+      </main>
+    </div>
+  </body>
+</html>
