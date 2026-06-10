@@ -142,7 +142,7 @@ Factory reset is local only. It is not exposed through the HTTP API.
 
 ## SD Card Replacement
 
-If an edge loses its device key, it is a new device identity. Cloud must support installer-initiated rebind:
+If an edge loses its device key, it is a new device identity. The support path is installer-initiated rebind, not device impersonation:
 
 1. Mark the old binding superseded.
 2. Preserve old event history.
@@ -150,3 +150,28 @@ If an edge loses its device key, it is a new device identity. Cloud must support
 4. Resume sync from the new edge identity.
 
 Do not let a fresh SD card silently impersonate the old edge.
+
+The cloud registry helper stores active and superseded bindings in a registry database. Register the old binding payload and its latest preserved history reference:
+
+```bash
+python -m edge.angel_edge --db cloud-binding-registry.sqlite3 cloud-register-binding \
+  --binding-file old-binding.json \
+  --event-history-ref witness:edge-old:sequence-4200
+```
+
+After the replacement edge prints a new commissioning payload, create a rebind artifact for that new device ID and bootstrap nonce:
+
+```bash
+python -m edge.angel_edge --db cloud-binding-registry.sqlite3 cloud-create-rebind \
+  --cloud-private-key-file cloud-binding-private.pem \
+  --new-device-id agd_new_device_id \
+  --new-bootstrap-nonce new_bootstrap_nonce \
+  --property-id property-1 \
+  --property-label "Pilot Property" \
+  --gate-id front \
+  --reason sd_card_loss \
+  --preserved-history-ref witness:edge-old:sequence-4200 \
+  --output-file rebind-artifact.json
+```
+
+Apply `rebind-artifact.json` to the replacement edge with the normal `apply-binding` command. The edge records `rebind_id`, `replaces_binding_id`, `replaces_device_id`, and `rebind_preserved_history_ref` in local metadata and writes a `binding_rebind_applied` event.

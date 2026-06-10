@@ -23,6 +23,8 @@ from .camera_service import run_camera_service
 from .crypto_tokens import generate_keypair, load_private_key, sign_token
 from .http_api import run_server
 from .pilot_acceptance import PilotAcceptanceError, run_pilot_acceptance
+from .rebind import RebindError
+from . import rebind
 from .relay_service import run_relay_service
 from .scanner import ScannerError, run_scanner_service
 from .store import (
@@ -209,6 +211,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Destructive final check: revokes local API tokens on the target edge.",
     )
 
+    register_binding_parser = subparsers.add_parser("cloud-register-binding", help="Register an active cloud binding in a registry DB")
+    register_binding_parser.add_argument("--binding-file", required=True)
+    register_binding_parser.add_argument("--event-history-ref")
+
+    create_rebind_parser = subparsers.add_parser("cloud-create-rebind", help="Create a cloud-signed rebind artifact for a replacement edge")
+    create_rebind_parser.add_argument("--cloud-private-key-file", required=True)
+    create_rebind_parser.add_argument("--new-device-id", required=True)
+    create_rebind_parser.add_argument("--new-bootstrap-nonce", required=True)
+    create_rebind_parser.add_argument("--property-id", required=True)
+    create_rebind_parser.add_argument("--gate-id", required=True)
+    create_rebind_parser.add_argument("--property-label", required=True)
+    create_rebind_parser.add_argument("--reason", required=True)
+    create_rebind_parser.add_argument("--preserved-history-ref", required=True)
+    create_rebind_parser.add_argument("--binding-id")
+    create_rebind_parser.add_argument("--output-file")
+
     subparsers.add_parser("commissioning-payload", help="Print the unclaimed device commissioning payload")
 
     challenge_parser = subparsers.add_parser("sign-claim-challenge", help="Sign a cloud claim challenge with the device key")
@@ -338,6 +356,43 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "cloud-register-binding":
+            binding_document = json.loads(Path(args.binding_file).read_text(encoding="utf-8"))
+            payload = binding_document.get("payload") if isinstance(binding_document.get("payload"), dict) else binding_document
+            with rebind.connect(db_path) as registry:
+                rebind.migrate(registry)
+                print_json(
+                    {
+                        "ok": True,
+                        "binding": rebind.register_binding(
+                            registry,
+                            payload=payload,
+                            event_history_ref=args.event_history_ref,
+                        ),
+                    }
+                )
+            return 0
+
+        if args.command == "cloud-create-rebind":
+            with rebind.connect(db_path) as registry:
+                rebind.migrate(registry)
+                artifact = rebind.create_rebind_artifact(
+                    registry,
+                    cloud_private_key=load_private_key(args.cloud_private_key_file),
+                    new_device_id=args.new_device_id,
+                    new_bootstrap_nonce=args.new_bootstrap_nonce,
+                    property_id=args.property_id,
+                    gate_id=args.gate_id,
+                    property_label=args.property_label,
+                    reason=args.reason,
+                    preserved_history_ref=args.preserved_history_ref,
+                    binding_id=args.binding_id,
+                )
+            if args.output_file:
+                Path(args.output_file).write_text(json.dumps(artifact, indent=2, sort_keys=True), encoding="utf-8")
+            print_json({"ok": True, "artifact": artifact})
+            return 0
+
         if args.command == "scanner-service":
             run_scanner_service(
                 edge_url=args.edge_url,
@@ -365,6 +420,7 @@ def main(argv: list[str] | None = None) -> int:
         AnchorPublishError,
         WitnessError,
         PilotAcceptanceError,
+        RebindError,
         ValueError,
         KeyError,
         json.JSONDecodeError,

@@ -19,10 +19,10 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - Camera clip capture: the edge can dispatch short RTSP evidence clips after allow/deny gate events and record clip or failure metadata in the hash-chained log.
 - Pilot acceptance runner: live edge HTTP service test covers PIN, QR, plate, denial cases, events, SSE, head anchors, verify-log, and relay-click expectation.
 - First-boot Pi package: setup script, systemd units, environment template, commissioning payload writer, key-directory permissions, and watchdog manager config.
+- SD-card-loss rebind: cloud registry helpers supersede the old binding, preserve history reference, and mint a new binding artifact for the replacement device identity.
 
 ## Next
 
-- SD-card-loss rebind: support replacing an edge identity for an existing property/gate slot while preserving old event history.
 - Cloud binding and token rotation: use the device key as root identity and rotate dashboard, sync, and anchor tokens as leaves.
 
 ## Later

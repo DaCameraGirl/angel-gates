@@ -79,9 +79,7 @@ Gap: the Pi image should include RTC or verified NTP sync, and the HTTP authoriz
 
 Risk: a fresh image generates a new device identity for a gate that already has history.
 
-Current answer: edge refuses half-present keypair state. A fresh image becomes a new device identity.
-
-Gap: cloud-side installer rebind to existing property/gate slot is not built. Design: mark old binding superseded, preserve old event history, bind new device ID to the same gate slot, and resume sync under new identity.
+Current answer: edge refuses half-present keypair state. A fresh image becomes a new device identity. The cloud rebind registry marks the old binding superseded, preserves the old history reference, and creates a signed rebind artifact for the new device ID on the same property/gate slot. The replacement edge records the old binding/device lineage as metadata; it does not impersonate the old key.
 
 ### Physical Cabinet Access
 

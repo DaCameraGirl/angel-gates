@@ -62,6 +62,31 @@ python -m edge.angel_edge \
   --cloud-public-key-file edge-data/cloud-binding-public.pem
 ```
 
+For SD-card loss or box replacement, cloud support should create a rebind artifact for the replacement edge identity instead of reusing the old key. Register the old binding in the cloud registry DB:
+
+```bash
+python -m edge.angel_edge --db cloud-binding-registry.sqlite3 cloud-register-binding \
+  --binding-file edge-data/old-binding.json \
+  --event-history-ref witness:edge-old:sequence-4200
+```
+
+Create the replacement binding artifact from the new edge commissioning payload:
+
+```bash
+python -m edge.angel_edge --db cloud-binding-registry.sqlite3 cloud-create-rebind \
+  --cloud-private-key-file edge-data/cloud-binding-private.pem \
+  --new-device-id agd_new_device_id \
+  --new-bootstrap-nonce new_bootstrap_nonce \
+  --property-id property-1 \
+  --property-label "Pilot Property" \
+  --gate-id front \
+  --reason sd_card_loss \
+  --preserved-history-ref witness:edge-old:sequence-4200 \
+  --output-file edge-data/rebind-artifact.json
+```
+
+Apply the rebind artifact with the same `apply-binding` command. The replacement edge remains a new device identity and records the old binding/device lineage locally.
+
 Issue a short-lived dashboard token:
 
 ```bash

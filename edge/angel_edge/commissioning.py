@@ -46,6 +46,11 @@ COMMISSIONING_KEYS = [
     "binding_artifact_hash",
     "binding_revoked_at",
     "binding_revoked_reason",
+    "rebind_id",
+    "replaces_binding_id",
+    "replaces_device_id",
+    "rebind_preserved_history_ref",
+    "rebind_reason",
 ]
 
 
@@ -254,6 +259,13 @@ def apply_binding_artifact(
     if payload.get("expires_at"):
         set_metadata(connection, "binding_expires_at", str(payload["expires_at"]))
     set_metadata(connection, "binding_artifact_hash", hashlib.sha256(canonical_json(artifact).encode("utf-8")).hexdigest())
+    rebind = payload.get("rebind") if isinstance(payload.get("rebind"), dict) else None
+    if rebind:
+        set_metadata(connection, "rebind_id", str(rebind.get("rebind_id") or ""))
+        set_metadata(connection, "replaces_binding_id", str(rebind.get("replaces_binding_id") or ""))
+        set_metadata(connection, "replaces_device_id", str(rebind.get("replaces_device_id") or ""))
+        set_metadata(connection, "rebind_preserved_history_ref", str(rebind.get("preserved_history_ref") or ""))
+        set_metadata(connection, "rebind_reason", str(rebind.get("reason") or ""))
 
     issued_tokens = []
     for token in payload.get("api_tokens", []):
@@ -270,8 +282,14 @@ def apply_binding_artifact(
     append_event(
         connection,
         event_type="commissioning",
-        reason="binding_applied",
-        extra={"binding_id": binding_id, "property_id": property_id, "gate_id": gate_id, "token_count": len(issued_tokens)},
+        reason="binding_rebind_applied" if rebind else "binding_applied",
+        extra={
+            "binding_id": binding_id,
+            "property_id": property_id,
+            "gate_id": gate_id,
+            "token_count": len(issued_tokens),
+            "rebind": rebind,
+        },
     )
     connection.commit()
     return {
@@ -282,6 +300,7 @@ def apply_binding_artifact(
         "gate_id": gate_id,
         "commissioning_status": get_metadata(connection, "commissioning_status"),
         "api_tokens": issued_tokens,
+        "rebind": rebind,
     }
 
 
@@ -329,4 +348,9 @@ def commissioning_status(connection) -> dict[str, Any]:  # noqa: ANN001
         "binding_expires_at": get_metadata(connection, "binding_expires_at"),
         "binding_revoked_at": get_metadata(connection, "binding_revoked_at"),
         "binding_revoked_reason": get_metadata(connection, "binding_revoked_reason"),
+        "rebind_id": get_metadata(connection, "rebind_id"),
+        "replaces_binding_id": get_metadata(connection, "replaces_binding_id"),
+        "replaces_device_id": get_metadata(connection, "replaces_device_id"),
+        "rebind_preserved_history_ref": get_metadata(connection, "rebind_preserved_history_ref"),
+        "rebind_reason": get_metadata(connection, "rebind_reason"),
     }

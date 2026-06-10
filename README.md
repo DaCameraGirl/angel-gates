@@ -4,7 +4,7 @@
 
 Edge-first gate access and chargeback evidence for properties with existing barrier-arm gates.
 
-**Status:** Edge runtime shipped | Commissioning shipped | Cloud witness shipped | Pilot acceptance runner shipped | Relay driver shipped | QR scanner shipped | Camera capture shipped | Pi first-boot package shipped
+**Status:** Edge runtime shipped | Commissioning shipped | Rebind flow shipped | Cloud witness shipped | Pilot acceptance runner shipped | Relay driver shipped | Camera capture shipped | Pi first-boot package shipped
 
 ## For Developers
 
@@ -32,6 +32,7 @@ It includes:
 - Fixed genesis event and head anchors for truncation detection.
 - Cloud anchor publisher and append-only witness storage with fork rejection.
 - Commissioning identity with local device keys, signed claims, binding artifacts, and scoped API tokens.
+- Installer-initiated rebind flow for replacing a failed SD card or edge box without reusing the old device identity.
 - Local HTTP API for reader/controller integration.
 - Local relay service with logging and GPIO drivers for momentary relay pulses.
 - QR scanner service for stdin, serial, and Linux evdev scanner input.
