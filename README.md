@@ -1,8 +1,37 @@
 # Angel Gates
 
-Angel Gates is a production-minded starting point for a modern gate access-control layer. It focuses on authorization, resident and visitor workflows, manager operations, auditability, maintenance visibility, cloud handoff, and integration records for existing gate systems.
+Angel Gates is an edge-first access authorization platform for gated properties.
+
+The product spine is the edge box and the event log:
+
+- The edge box makes local authorization decisions without depending on cloud reachability.
+- The event log proves what happened with a hash-chained, tamper-evident record.
+
+Resident apps, visitor apps, dashboards, reports, and cloud sync are clients over those two pieces.
 
 The app starts with an empty local workspace. There are no seeded residents, passes, controllers, integrations, alerts, or audit records.
+
+## Edge First
+
+The local edge runtime lives in `edge/`.
+
+It includes:
+
+- SQLite credential cache.
+- Local PIN, plate, and signed QR authorization.
+- Ed25519 QR token verification using cached public keys.
+- Revocation support for credentials and QR tokens.
+- Offline event queueing.
+- Hash-chained event log verification.
+- Local HTTP API for reader/controller integration.
+- Sync delta intake for cloud-to-edge updates.
+
+Start here:
+
+```powershell
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 init --edge-id property-edge-001
+python -m unittest edge.tests.test_edge_runtime
+```
 
 ## Product Buckets
 
@@ -16,6 +45,9 @@ The app starts with an empty local workspace. There are no seeded residents, pas
 - Cloud sync settings, workspace export, and workspace import.
 - Integration records for DoorKing, Linear, LiftMaster, custom relay controllers, and cloud APIs.
 - Retrofit controller model that records relay intent only after authorization.
+- Local-first authorization with offline/degraded mode.
+- Revocation propagation target under 30 seconds while online.
+- Tamper-evident event trail for disputes, break-ins, move-outs, and board review.
 
 ### Safety And Compliance Boundary
 
@@ -28,7 +60,14 @@ This repository is not a certification claim, legal opinion, installer manual, o
 
 ## Run Locally
 
-Open `index.html` in a browser. The app uses browser local storage and has no package dependencies.
+Open `index.html` in a browser for the current dashboard shell. The app uses browser local storage and has no package dependencies.
+
+Run the edge checks:
+
+```powershell
+python -m py_compile edge\angel_edge\__init__.py edge\angel_edge\__main__.py edge\angel_edge\crypto_tokens.py edge\angel_edge\store.py edge\angel_edge\http_api.py edge\angel_edge\cli.py edge\tests\test_edge_runtime.py
+python -m unittest edge.tests.test_edge_runtime
+```
 
 Optional syntax check:
 
@@ -41,7 +80,12 @@ node --check src/app.js
 - `index.html` - application shell.
 - `styles.css` - responsive industrial operations UI.
 - `src/app.js` - local workspace state, forms, credential decision engine, audit events, export, and import.
+- `edge/` - local edge controller runtime and tests.
+- `docs/EDGE_ARCHITECTURE.md` - edge-first product architecture.
+- `docs/SAFETY_BOUNDARY.md` - UL 294 / UL 325 boundary language.
 
 ## Data Policy
 
 The app stores only records entered through the browser UI or imported from a workspace JSON file. Clearing browser storage or using the in-app clear action removes local records from that browser.
+
+The edge runtime creates schema only. It does not seed controller, resident, visitor, pass, credential, integration, or audit data.
