@@ -3,19 +3,38 @@ from __future__ import annotations
 import tempfile
 import time
 import unittest
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from edge.angel_edge.commissioning import (
+    FACTORY_RESET_CONFIRMATION,
+    apply_binding_artifact,
+    commissioning_payload,
+    commissioning_status,
+    factory_reset,
+    public_key_pem,
+    revoke_binding,
+    sign_binding_payload,
+    sign_claim_challenge,
+    verify_device_signature,
+)
 from edge.angel_edge.crypto_tokens import generate_keypair, load_private_key, sign_token
 from edge.angel_edge.store import (
+    EdgeError,
     add_credential,
     add_gate,
     add_qr_public_key,
     authorize,
     connect,
     create_event_anchor,
+    hash_api_token,
+    issue_api_token_hash,
     migrate,
     revoke_credential,
     revoke_qr_token,
+    validate_api_token,
     verify_event_log,
 )
 
@@ -41,6 +60,9 @@ class EdgeRuntimeTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.connection.close()
         self.tempdir.cleanup()
+
+    def future_time(self, hours: int = 24) -> str:
+        return (datetime.now(UTC) + timedelta(hours=hours)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     def test_pin_authorization_revocation_and_hash_chain(self) -> None:
         add_credential(
@@ -180,6 +202,100 @@ class EdgeRuntimeTest(unittest.TestCase):
         verification = verify_event_log(self.connection)
         self.assertFalse(verification["ok"])
         self.assertEqual("event_log_truncated_below_latest_anchor", verification["error"])
+
+    def test_commissioning_claim_binding_tokens_and_reset(self) -> None:
+        key_file = Path(self.tempdir.name) / "device.key"
+        payload = commissioning_payload(self.connection, key_file)
+        self.assertTrue(key_file.exists())
+        self.assertTrue(Path(f"{key_file}.pub").exists())
+        self.assertEqual(payload["commissioning_status"], "unclaimed")
+
+        challenge = {
+            "nonce": "claim-nonce-1",
+            "device_id": payload["device_id"],
+            "property_id": "property-1",
+            "gate_id": "front",
+            "issued_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        }
+        claim = sign_claim_challenge(key_file, challenge)
+        self.assertTrue(verify_device_signature(payload["public_key_pem"], challenge, claim["signature"]))
+
+        cloud_private_key = Ed25519PrivateKey.generate()
+        dashboard_token = "dashboard-token-value"
+        artifact = sign_binding_payload(
+            cloud_private_key,
+            {
+                "binding_id": "binding-1",
+                "device_id": payload["device_id"],
+                "bootstrap_nonce": payload["bootstrap_nonce"],
+                "property_id": "property-1",
+                "property_label": "Pilot Property",
+                "gate_id": "front",
+                "issued_at": challenge["issued_at"],
+                "status": "claimed_pending_cloud",
+                "api_tokens": [
+                    {
+                        "token_id": "dashboard-1",
+                        "token_hash": hash_api_token(dashboard_token),
+                        "label": "Manager dashboard",
+                        "scope": "dashboard",
+                        "expires_at": self.future_time(),
+                    }
+                ],
+            },
+        )
+        result = apply_binding_artifact(
+            self.connection,
+            key_file=key_file,
+            artifact=artifact,
+            cloud_public_key_pem=public_key_pem(cloud_private_key.public_key()),
+        )
+        self.assertEqual(result["commissioning_status"], "claimed_pending_cloud")
+        self.assertEqual(result["gate_id"], "front")
+        self.assertIsNotNone(validate_api_token(self.connection, dashboard_token, allowed_scopes={"dashboard"}))
+
+        issue_api_token_hash(
+            self.connection,
+            token_id="expired-1",
+            token_hash=hash_api_token("expired-token"),
+            label="Expired token",
+            scope="dashboard",
+            expires_at=(datetime.now(UTC) - timedelta(hours=1)).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        )
+        self.assertIsNone(validate_api_token(self.connection, "expired-token", allowed_scopes={"dashboard"}))
+
+        add_credential(
+            self.connection,
+            credential_id="cred-pin-commissioned",
+            principal_id="unit-104",
+            principal_label="Unit 104",
+            principal_type="resident",
+            credential_type="pin",
+            credential_value="111222",
+            gate_scope=["front"],
+        )
+        revoke_binding(self.connection, reason="property_sold")
+        denied = authorize(
+            self.connection,
+            credential_type="pin",
+            credential_value="111222",
+            gate_id="front",
+        )
+        self.assertEqual("deny", denied["decision"])
+        self.assertEqual("edge_binding_revoked", denied["reason"])
+
+        reset = factory_reset(self.connection, key_file=key_file, confirmation=FACTORY_RESET_CONFIRMATION)
+        self.assertTrue(reset["ok"])
+        self.assertFalse(key_file.exists())
+        self.assertFalse(Path(f"{key_file}.pub").exists())
+        self.assertEqual(commissioning_status(self.connection)["commissioning_status"], "unclaimed")
+        self.assertIsNone(validate_api_token(self.connection, dashboard_token, allowed_scopes={"dashboard"}))
+
+    def test_device_identity_refuses_half_present_keypair(self) -> None:
+        key_file = Path(self.tempdir.name) / "broken-device.key"
+        key_file.write_text("not a real key", encoding="utf-8")
+        with self.assertRaises(EdgeError):
+            commissioning_payload(self.connection, key_file)
 
 
 if __name__ == "__main__":

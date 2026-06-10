@@ -9,6 +9,7 @@
     { id: "residents", label: "Resident App", countKey: "residents" },
     { id: "passes", label: "Visitor Passes", countKey: "passes" },
     { id: "edge", label: "Live Edge", countKey: null },
+    { id: "deployment", label: "Deployment", countKey: null },
     { id: "integrations", label: "Integrations", countKey: "integrations" },
     { id: "maintenance", label: "Maintenance", countKey: "alerts" },
     { id: "audit", label: "Audit Logs", countKey: "audits" },
@@ -135,6 +136,7 @@
       residents: ["Resident App", "Resident credentials and app status"],
       passes: ["Visitor Passes", "Time-bound access credentials"],
       edge: ["Live Edge", "Direct-to-edge pilot console"],
+      deployment: ["Deployment", "Physical install and commissioning model"],
       integrations: ["System Integrations", "Existing gate systems stay in the loop"],
       maintenance: ["Maintenance Alerts", "Operational issues tied to controllers"],
       audit: ["Audit Logs", "Every decision and configuration action"],
@@ -152,6 +154,7 @@
       residents: residentsView,
       passes: passesView,
       edge: edgeView,
+      deployment: deploymentView,
       integrations: integrationsView,
       maintenance: maintenanceView,
       audit: auditView,
@@ -167,6 +170,7 @@
       residents: bindResidents,
       passes: bindPasses,
       edge: bindEdge,
+      deployment: function () {},
       integrations: bindIntegrations,
       maintenance: bindMaintenance,
       audit: bindAudit,
@@ -510,6 +514,79 @@
             <div class="live-feed" id="edge-event-feed">
               ${edgeEventsMarkup()}
             </div>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
+  function deploymentView() {
+    return `
+      <div class="view-grid">
+        <section class="surface full">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Install Topology</p>
+              <h2>One property workspace, gate endpoints underneath it</h2>
+              <p>The edge box is the only Angel Gates hardware build. Readers and cameras are purchased modules; gate safety devices stay in the operator domain.</p>
+            </div>
+          </div>
+          <div class="surface-body">
+            <div class="topology">
+              <article>
+                <span>Property Workspace</span>
+                <strong>Residents, passes, policies, audit log</strong>
+                <small>Cloud tenant and manager dashboard</small>
+              </article>
+              <article>
+                <span>Gate Edge Box</span>
+                <strong>Linux SBC, relay HAT, SQLite, event log</strong>
+                <small>One per gate cabinet by default</small>
+              </article>
+              <article>
+                <span>Credential Inputs</span>
+                <strong>QR reader, keypad, optional LPR camera</strong>
+                <small>Off-the-shelf modules wired to the edge</small>
+              </article>
+              <article>
+                <span>Existing Operator</span>
+                <strong>DoorKing / Linear / LiftMaster open input</strong>
+                <small>Relay intent only; safety logic untouched</small>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="surface">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Commissioning</p>
+              <h2>Installer flow</h2>
+            </div>
+          </div>
+          <div class="surface-body">
+            <ul class="stack-list">
+              <li><strong>Boot unclaimed</strong><span>Edge generates its device key and QR claim payload.</span></li>
+              <li><strong>Scan and bind</strong><span>Dashboard binds the edge to a property and gate slot with a signed challenge.</span></li>
+              <li><strong>Apply artifact</strong><span>Cloud-signed binding artifact lets the edge operate as claimed pending sync.</span></li>
+              <li><strong>Rotate tokens</strong><span>Dashboard, installer, sync, and anchor credentials are scoped leaves under device identity.</span></li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="surface">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Pilot Hardware</p>
+              <h2>Build only the brain</h2>
+            </div>
+          </div>
+          <div class="surface-body">
+            <ul class="stack-list boundary-list">
+              <li><strong>Build</strong><span>Pi CM4/CM5 or industrial Linux box, relay HAT, DIN-rail power, case.</span></li>
+              <li><strong>Buy</strong><span>2D QR scanner, keypad, optional LPR camera, optional non-safety presence input.</span></li>
+              <li><strong>Do not touch</strong><span>Safety loops, photo eyes, reversing edges, operator safety functions.</span></li>
+            </ul>
           </div>
         </section>
       </div>

@@ -29,6 +29,48 @@ python -m pip install -r edge/requirements.txt
 python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 init --edge-id property-edge-001
 ```
 
+## Commission The Edge
+
+Create or read the device identity and print the commissioning QR payload:
+
+```bash
+python -m edge.angel_edge \
+  --db edge-data/angel-edge.sqlite3 \
+  --device-key-file edge-data/device.key \
+  commissioning-payload
+```
+
+Sign a cloud claim challenge that includes `nonce`, `device_id`, `property_id`, `gate_id`, and `issued_at`:
+
+```bash
+python -m edge.angel_edge \
+  --db edge-data/angel-edge.sqlite3 \
+  --device-key-file edge-data/device.key \
+  sign-claim-challenge --challenge-file edge-data/claim-challenge.json
+```
+
+Apply a cloud-signed binding artifact:
+
+```bash
+python -m edge.angel_edge \
+  --db edge-data/angel-edge.sqlite3 \
+  --device-key-file edge-data/device.key \
+  apply-binding \
+  --binding-file edge-data/binding.json \
+  --cloud-public-key-file edge-data/cloud-binding-public.pem
+```
+
+Issue a short-lived dashboard token:
+
+```bash
+python -m edge.angel_edge \
+  --db edge-data/angel-edge.sqlite3 \
+  issue-api-token \
+  --label "Pilot dashboard" \
+  --scope dashboard \
+  --ttl-hours 24
+```
+
 ## Add A Gate
 
 ```powershell
@@ -104,10 +146,7 @@ The edge can authorize that QR without cloud reachability as long as the public 
 ## Local HTTP API
 
 ```powershell
-python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 serve `
-  --host 127.0.0.1 `
-  --port 8765 `
-  --api-token "replace-with-a-long-random-token"
+python -m edge.angel_edge --db edge-data/angel-edge.sqlite3 serve --host 127.0.0.1 --port 8765
 ```
 
 Endpoints:
@@ -122,7 +161,7 @@ Endpoints:
 Every endpoint requires:
 
 ```text
-Authorization: Bearer replace-with-a-long-random-token
+Authorization: Bearer <scoped-short-lived-token>
 ```
 
 ## Verify The Event Log

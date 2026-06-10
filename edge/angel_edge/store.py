@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 import sqlite3
 import time
 import uuid
@@ -191,6 +192,19 @@ def migrate(connection: sqlite3.Connection, edge_id: str | None = None) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_event_anchors_sequence
           ON event_anchors (sequence DESC);
+
+        CREATE TABLE IF NOT EXISTS api_tokens (
+          token_id TEXT PRIMARY KEY,
+          token_hash TEXT NOT NULL UNIQUE,
+          label TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          revoked_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_api_tokens_hash
+          ON api_tokens (token_hash);
         """
     )
     set_metadata(connection, "schema_version", "1")
@@ -479,6 +493,7 @@ def revoke_credential(
         credential_id=credential_id,
         extra={"source_created_at": source_created_at},
     )
+    create_event_anchor(connection, anchor_type="revocation_local")
     connection.commit()
 
 
@@ -528,6 +543,7 @@ def revoke_qr_token(
         credential_type="qr",
         extra={"source_created_at": source_created_at},
     )
+    create_event_anchor(connection, anchor_type="revocation_local")
     connection.commit()
 
 
@@ -542,6 +558,16 @@ def authorize(
     request: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     begin_write(connection)
+    if get_metadata(connection, "commissioning_status") == "revoked":
+        return {
+            "decision": "deny",
+            "reason": "edge_binding_revoked",
+            "fallback_required": False,
+            "relay_intent": False,
+            "event_id": None,
+            "event_hash": None,
+            "occurred_at": utc_now(),
+        }
     if gate_exists(connection, gate_id) is False:
         return deny_and_log(
             connection,
@@ -1082,6 +1108,10 @@ def sync_status(connection: sqlite3.Connection) -> dict[str, Any]:
         "head_sequence": head["sequence"],
         "head_hash": head["event_hash"],
         "latest_anchor": latest_anchor.get("latest_anchor"),
+        "commissioning_status": get_metadata(connection, "commissioning_status") or "unclaimed",
+        "device_id": get_metadata(connection, "device_id"),
+        "property_id": get_metadata(connection, "property_id"),
+        "gate_id": get_metadata(connection, "gate_id"),
     }
 
 
@@ -1101,8 +1131,129 @@ def mark_events_synced(connection: sqlite3.Connection, through_sequence: int | N
     connection.commit()
 
 
+def hash_api_token(token_value: str) -> str:
+    return hashlib.sha256(f"api_token:{token_value}".encode("utf-8")).hexdigest()
+
+
+def issue_api_token(
+    connection: sqlite3.Connection,
+    *,
+    label: str,
+    scope: str,
+    expires_at: str,
+) -> dict[str, Any]:
+    token_value = secrets.token_urlsafe(32)
+    token_id = f"tok_{uuid.uuid4()}"
+    token_record = issue_api_token_hash(
+        connection,
+        token_id=token_id,
+        token_hash=hash_api_token(token_value),
+        label=label,
+        scope=scope,
+        expires_at=expires_at,
+    )
+    connection.commit()
+    return {**token_record, "token": token_value}
+
+
+def issue_api_token_hash(
+    connection: sqlite3.Connection,
+    *,
+    token_id: str,
+    token_hash: str,
+    label: str,
+    scope: str,
+    expires_at: str,
+) -> dict[str, Any]:
+    begin_write(connection)
+    now = utc_now()
+    connection.execute(
+        """
+        INSERT INTO api_tokens (token_id, token_hash, label, scope, expires_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(token_id) DO UPDATE SET
+          token_hash = excluded.token_hash,
+          label = excluded.label,
+          scope = excluded.scope,
+          expires_at = excluded.expires_at,
+          revoked_at = NULL
+        """,
+        (token_id, token_hash, label, scope, expires_at, now),
+    )
+    append_event(
+        connection,
+        event_type="token",
+        reason="api_token_issued",
+        extra={"token_id": token_id, "label": label, "scope": scope, "expires_at": expires_at},
+    )
+    return {"token_id": token_id, "label": label, "scope": scope, "expires_at": expires_at}
+
+
+def validate_api_token(
+    connection: sqlite3.Connection,
+    token_value: str,
+    *,
+    allowed_scopes: set[str] | None = None,
+) -> dict[str, Any] | None:
+    token_hash = hash_api_token(token_value)
+    row = connection.execute(
+        "SELECT * FROM api_tokens WHERE token_hash = ? AND revoked_at IS NULL",
+        (token_hash,),
+    ).fetchone()
+    if row is None:
+        return None
+    expires_at = parse_time(row["expires_at"])
+    if expires_at is None or datetime.now(UTC) > expires_at:
+        return None
+    scope = str(row["scope"])
+    if allowed_scopes and scope != "*" and scope not in allowed_scopes:
+        return None
+    return dict(row)
+
+
+def revoke_api_token(connection: sqlite3.Connection, *, token_id: str, reason: str) -> None:
+    begin_write(connection)
+    now = utc_now()
+    cursor = connection.execute(
+        "UPDATE api_tokens SET revoked_at = ? WHERE token_id = ? AND revoked_at IS NULL",
+        (now, token_id),
+    )
+    if cursor.rowcount == 0:
+        raise EdgeError("api_token_not_found_or_already_revoked")
+    append_event(
+        connection,
+        event_type="token",
+        reason="api_token_revoked",
+        extra={"token_id": token_id, "reason": reason},
+    )
+    connection.commit()
+
+
+def apply_binding_revocation(
+    connection: sqlite3.Connection,
+    *,
+    reason: str,
+    source_created_at: str | None = None,
+) -> None:
+    begin_write(connection)
+    now = utc_now()
+    set_metadata(connection, "commissioning_status", "revoked")
+    set_metadata(connection, "binding_revoked_at", now)
+    set_metadata(connection, "binding_revoked_reason", reason)
+    connection.execute("UPDATE api_tokens SET revoked_at = ? WHERE revoked_at IS NULL", (now,))
+    record_revocation_latency(connection, source_created_at)
+    append_event(
+        connection,
+        event_type="commissioning",
+        reason="binding_revoked",
+        extra={"reason": reason, "source_created_at": source_created_at},
+    )
+    create_event_anchor(connection, anchor_type="binding_revocation_local")
+    connection.commit()
+
+
 def apply_delta(connection: sqlite3.Connection, delta: dict[str, Any]) -> dict[str, Any]:
-    applied = {"gates": 0, "credentials": 0, "credential_revocations": 0, "qr_public_keys": 0, "qr_token_revocations": 0}
+    applied = {"gates": 0, "credentials": 0, "credential_revocations": 0, "qr_public_keys": 0, "qr_token_revocations": 0, "binding_revocations": 0}
     for gate in delta.get("gates", []):
         add_gate(connection, safety_acknowledged=bool(gate.get("safety_acknowledged")), **{key: gate[key] for key in ["gate_id", "name", "site_area", "provider", "interface_type", "operator_class", "hardware_id"]})
         applied["gates"] += 1
@@ -1118,6 +1269,9 @@ def apply_delta(connection: sqlite3.Connection, delta: dict[str, Any]) -> dict[s
     for revocation in delta.get("qr_token_revocations", []):
         revoke_qr_token(connection, **revocation)
         applied["qr_token_revocations"] += 1
+    for revocation in delta.get("binding_revocations", []):
+        apply_binding_revocation(connection, **revocation)
+        applied["binding_revocations"] += 1
     begin_write(connection)
     set_metadata(connection, "last_delta_at", utc_now())
     if "sync_cursor" in delta:

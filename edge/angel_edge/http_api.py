@@ -11,10 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from . import store
 
 
-def run_server(db_path: str, host: str, port: int, api_token: str) -> None:
-    if not api_token:
-        raise ValueError("api_token_required")
-
+def run_server(db_path: str, host: str, port: int) -> None:
     class Handler(BaseHTTPRequestHandler):
         server_version = "AngelEdge/0.1"
 
@@ -24,11 +21,11 @@ def run_server(db_path: str, host: str, port: int, api_token: str) -> None:
             self.end_headers()
 
         def do_GET(self) -> None:  # noqa: N802
-            if not self.authorized():
+            parsed = urlparse(self.path)
+            if not self.authorized(scopes_for_get(parsed.path)):
                 self.send_json(401, {"error": "unauthorized"})
                 return
 
-            parsed = urlparse(self.path)
             query = parse_qs(parsed.query)
             if parsed.path == "/health":
                 with store.connect(db_path) as connection:
@@ -48,16 +45,19 @@ def run_server(db_path: str, host: str, port: int, api_token: str) -> None:
                 return
             if parsed.path == "/events/stream":
                 after_sequence = bounded_int(query.get("after_sequence", ["0"])[0], default=0, minimum=0, maximum=10**12)
+                if not after_sequence:
+                    after_sequence = bounded_int(self.headers.get("Last-Event-ID", "0"), default=0, minimum=0, maximum=10**12)
                 self.stream_events(after_sequence=after_sequence)
                 return
             self.send_json(404, {"error": "not_found"})
 
         def do_POST(self) -> None:  # noqa: N802
-            if not self.authorized():
+            parsed = urlparse(self.path)
+            required_scopes = scopes_for_post(parsed.path)
+            if not self.authorized(required_scopes):
                 self.send_json(401, {"error": "unauthorized"})
                 return
 
-            parsed = urlparse(self.path)
             if parsed.path == "/authorize":
                 payload = self.read_json()
                 with store.connect(db_path) as connection:
@@ -94,9 +94,16 @@ def run_server(db_path: str, host: str, port: int, api_token: str) -> None:
                 return
             self.send_json(404, {"error": "not_found"})
 
-        def authorized(self) -> bool:
+        def authorized(self, allowed_scopes: set[str]) -> bool:
             header = self.headers.get("Authorization", "")
-            return header == f"Bearer {api_token}"
+            if not header.startswith("Bearer "):
+                return False
+            token = header.removeprefix("Bearer ").strip()
+            if not token:
+                return False
+            with store.connect(db_path) as connection:
+                store.migrate(connection)
+                return store.validate_api_token(connection, token, allowed_scopes=allowed_scopes) is not None
 
         def stream_events(self, after_sequence: int) -> None:
             self.send_response(200)
@@ -120,7 +127,8 @@ def run_server(db_path: str, host: str, port: int, api_token: str) -> None:
                 time.sleep(1)
 
         def write_sse(self, event_name: str, payload: dict[str, Any]) -> None:
-            body = f"event: {event_name}\ndata: {json.dumps(payload, sort_keys=True)}\n\n".encode("utf-8")
+            event_id = payload.get("sequence") or payload.get("after_sequence") or 0
+            body = f"id: {event_id}\nevent: {event_name}\ndata: {json.dumps(payload, sort_keys=True)}\n\n".encode("utf-8")
             self.wfile.write(body)
             self.wfile.flush()
 
@@ -159,3 +167,21 @@ def bounded_int(value: str, *, default: int, minimum: int, maximum: int) -> int:
     except ValueError:
         return default
     return max(minimum, min(maximum, parsed))
+
+
+def scopes_for_post(path: str) -> set[str]:
+    if path == "/authorize":
+        return {"edge-api", "dashboard", "installer"}
+    if path == "/sync/delta":
+        return {"edge-sync", "installer"}
+    if path == "/anchors/head":
+        return {"anchor-publish", "installer"}
+    return {"dashboard", "installer"}
+
+
+def scopes_for_get(path: str) -> set[str]:
+    if path == "/health":
+        return {"dashboard", "installer", "edge-api", "edge-sync", "anchor-publish"}
+    if path in {"/events", "/events/stream"}:
+        return {"dashboard", "installer"}
+    return {"dashboard", "installer"}

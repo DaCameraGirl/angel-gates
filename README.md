@@ -24,6 +24,7 @@ It includes:
 - Offline event queueing.
 - Hash-chained event log verification.
 - Fixed genesis event and head anchors for truncation detection.
+- Commissioning identity with local device keys, signed claims, binding artifacts, and scoped API tokens.
 - Local HTTP API for reader/controller integration.
 - Sync delta intake for cloud-to-edge updates.
 
@@ -83,6 +84,7 @@ node --check src/app.js
 - `src/app.js` - dashboard shell, direct edge API panel, local workspace forms, audit events, export, and import.
 - `edge/` - local edge controller runtime and tests.
 - `docs/EDGE_ARCHITECTURE.md` - edge-first product architecture.
+- `docs/COMMISSIONING.md` - installer-facing commissioning and device identity flow.
 - `docs/SAFETY_BOUNDARY.md` - UL 294 / UL 325 boundary language.
 
 ## Data Policy

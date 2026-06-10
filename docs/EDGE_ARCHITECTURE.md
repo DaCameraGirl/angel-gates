@@ -24,6 +24,14 @@ Baseline requirements:
 - No wiring design that holds a gate open.
 - Power loss leaves the gate operator behaving as it did before Angel Gates was installed.
 
+## Commissioning Control Plane
+
+Commissioning binds a physical edge box to a property and gate slot. The edge generates an Ed25519 device key on first boot, keeps the private key local, derives its device ID from the public key fingerprint, and signs a cloud challenge bound to `{nonce, device_id, property_id, gate_id, issued_at}`.
+
+The cloud-signed binding artifact is what lets the edge enter `claimed_pending_cloud` or `claimed`. API tokens, sync credentials, anchor publishing, support access, and deprovisioning are leaves under that device identity root.
+
+See `docs/COMMISSIONING.md` for the installer flow.
+
 ## Authorization Tuple
 
 Every access decision is shaped as:

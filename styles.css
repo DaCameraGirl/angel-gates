@@ -582,6 +582,51 @@ td {
   color: var(--muted);
 }
 
+.topology {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.topology article {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  min-height: 160px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 14px;
+}
+
+.topology article:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -13px;
+  width: 13px;
+  border-top: 2px solid var(--signal-dark);
+}
+
+.topology span {
+  color: var(--signal-dark);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.topology strong {
+  font-family: var(--display);
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.topology small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .split-actions {
   display: flex;
   gap: 8px;
@@ -615,6 +660,14 @@ td {
   .surface.third {
     grid-column: 1 / -1;
   }
+
+  .topology {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .topology article::after {
+    display: none;
+  }
 }
 
 @media (max-width: 760px) {
@@ -630,6 +683,7 @@ td {
   .metric-strip,
   .form-grid,
   .form-grid.compact,
+  .topology,
   .nav-list {
     grid-template-columns: 1fr;
   }

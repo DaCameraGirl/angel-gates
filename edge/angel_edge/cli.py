@@ -5,9 +5,19 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from . import __version__
+from .commissioning import (
+    FACTORY_RESET_CONFIRMATION,
+    apply_binding_artifact,
+    commissioning_payload,
+    commissioning_status,
+    factory_reset,
+    revoke_binding,
+    sign_claim_challenge,
+)
 from .crypto_tokens import generate_keypair, load_private_key, sign_token
 from .http_api import run_server
 from .store import (
@@ -19,10 +29,12 @@ from .store import (
     authorize,
     connect,
     create_event_anchor,
+    issue_api_token,
     list_events,
     mark_events_synced,
     migrate,
     revoke_credential,
+    revoke_api_token,
     revoke_qr_token,
     sync_status,
     to_epoch,
@@ -33,6 +45,7 @@ from .store import (
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="angel-edge", description="Angel Gates local edge authorization runtime")
     parser.add_argument("--db", default="edge-data/angel-edge.sqlite3", help="SQLite database path")
+    parser.add_argument("--device-key-file", default="edge-data/device.key", help="Persistent Ed25519 device private key path")
     parser.add_argument("--version", action="version", version=f"angel-edge {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -114,11 +127,36 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser = subparsers.add_parser("serve", help="Run the local HTTP API")
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8765)
-    serve_parser.add_argument("--api-token", required=True, help="Required bearer token for every local API request")
 
     anchor_parser = subparsers.add_parser("anchor-head", help="Record the current event-log head for upstream anchoring")
     anchor_parser.add_argument("--anchor-type", default="cloud_pending")
     anchor_parser.add_argument("--upstream-ref")
+
+    subparsers.add_parser("commissioning-payload", help="Print the unclaimed device commissioning payload")
+
+    challenge_parser = subparsers.add_parser("sign-claim-challenge", help="Sign a cloud claim challenge with the device key")
+    challenge_parser.add_argument("--challenge-file", required=True)
+
+    binding_parser = subparsers.add_parser("apply-binding", help="Apply a cloud-signed binding artifact")
+    binding_parser.add_argument("--binding-file", required=True)
+    binding_parser.add_argument("--cloud-public-key-file", required=True)
+
+    token_parser = subparsers.add_parser("issue-api-token", help="Issue a short-lived local API token")
+    token_parser.add_argument("--label", required=True)
+    token_parser.add_argument("--scope", required=True, choices=["dashboard", "installer", "edge-api", "edge-sync", "anchor-publish", "*"])
+    token_parser.add_argument("--ttl-hours", type=float, default=24)
+
+    revoke_api_token_parser = subparsers.add_parser("revoke-api-token", help="Revoke a local API token")
+    revoke_api_token_parser.add_argument("--token-id", required=True)
+    revoke_api_token_parser.add_argument("--reason", required=True)
+
+    revoke_binding_parser = subparsers.add_parser("revoke-binding", help="Mark this edge binding revoked and stop authorization")
+    revoke_binding_parser.add_argument("--reason", required=True)
+
+    reset_parser = subparsers.add_parser("factory-reset", help="Local-only reset to unclaimed state")
+    reset_parser.add_argument("--confirm", required=True, help=f"Must be {FACTORY_RESET_CONFIRMATION}")
+
+    subparsers.add_parser("commissioning-status", help="Show device binding status")
     return parser
 
 
@@ -153,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "serve":
-            run_server(str(db_path), args.host, args.port, args.api_token)
+            run_server(str(db_path), args.host, args.port)
             return 0
 
         with connect(db_path) as connection:
@@ -244,6 +282,27 @@ def run_db_command(connection, args: argparse.Namespace) -> None:  # noqa: ANN00
         print_json({"ok": True})
     elif args.command == "anchor-head":
         print_json({"anchor": create_event_anchor(connection, anchor_type=args.anchor_type, upstream_ref=args.upstream_ref)})
+    elif args.command == "commissioning-payload":
+        print_json(commissioning_payload(connection, args.device_key_file))
+    elif args.command == "sign-claim-challenge":
+        challenge = json.loads(Path(args.challenge_file).read_text(encoding="utf-8"))
+        print_json(sign_claim_challenge(args.device_key_file, challenge))
+    elif args.command == "apply-binding":
+        artifact = json.loads(Path(args.binding_file).read_text(encoding="utf-8"))
+        cloud_public_key = Path(args.cloud_public_key_file).read_text(encoding="utf-8")
+        print_json(apply_binding_artifact(connection, key_file=args.device_key_file, artifact=artifact, cloud_public_key_pem=cloud_public_key))
+    elif args.command == "issue-api-token":
+        expires_at = (datetime.now(UTC) + timedelta(hours=args.ttl_hours)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        print_json({"api_token": issue_api_token(connection, label=args.label, scope=args.scope, expires_at=expires_at)})
+    elif args.command == "revoke-api-token":
+        revoke_api_token(connection, token_id=args.token_id, reason=args.reason)
+        print_json({"ok": True, "token_id": args.token_id})
+    elif args.command == "revoke-binding":
+        print_json(revoke_binding(connection, reason=args.reason))
+    elif args.command == "factory-reset":
+        print_json(factory_reset(connection, key_file=args.device_key_file, confirmation=args.confirm))
+    elif args.command == "commissioning-status":
+        print_json(commissioning_status(connection))
     else:
         raise EdgeError(f"unknown_command:{args.command}")
 
