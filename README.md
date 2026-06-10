@@ -60,6 +60,15 @@ python -m unittest edge.tests.test_edge_runtime
 
 This repository is not a certification claim, legal opinion, installer manual, or hardware safety approval.
 
+## What's Not In Scope Yet
+
+- LPR production workflow.
+- Intercom or video-call visitor workflow.
+- OEM cloud integrations such as myQ Community or DKS cloud APIs.
+- Multi-tenant SaaS billing and administration.
+- Dedicated installer mobile app.
+- Automated chargeback PDF generation.
+
 ## Run Locally
 
 Open `index.html` in a browser for the current dashboard shell. The app uses browser local storage and has no package dependencies.
@@ -85,6 +94,12 @@ node --check src/app.js
 - `edge/` - local edge controller runtime and tests.
 - `docs/EDGE_ARCHITECTURE.md` - edge-first product architecture.
 - `docs/COMMISSIONING.md` - installer-facing commissioning and device identity flow.
+- `docs/ROADMAP.md` - shipped, next, and later work with rationale.
+- `docs/PILOT.md` - first-property pilot plan and success metrics.
+- `docs/HARDWARE.md` - physical bill of materials and wiring boundary.
+- `docs/PRICING.md` - working pricing model and competitive positioning.
+- `docs/THREAT_MODEL.md` - security risks, mitigations, and gaps.
+- `docs/CHARGEBACK.md` - incident and damaged-arm evidence workflow.
 - `docs/SAFETY_BOUNDARY.md` - UL 294 / UL 325 boundary language.
 
 ## Data Policy
