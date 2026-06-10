@@ -20,6 +20,7 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 - Pilot acceptance runner: live edge HTTP service test covers PIN, QR, plate, denial cases, events, SSE, head anchors, verify-log, and relay-click expectation.
 - First-boot Pi package: setup script, systemd units, environment template, commissioning payload writer, key-directory permissions, and watchdog manager config.
 - SD-card-loss rebind: cloud registry helpers supersede the old binding, preserve history reference, and mint a new binding artifact for the replacement device identity.
+- LPR pilot plan: rear-plate-aware geometry, shadow-mode metrics, confidence fallback, and privacy/retention boundaries are documented for phase two.
 
 ## Next
 
@@ -27,7 +28,7 @@ This roadmap keeps the product spine clear: edge box first, event log first, eve
 
 ## Later
 
-- LPR: add rear-plate-aware lane geometry and confidence fallback after QR/PIN proves the first pilot.
+- LPR production workflow: implement rear-plate-aware capture and assisted authorization only after QR/PIN proves the first pilot.
 - Chargeback reports: turn event/photo windows into incident packets for damaged gate arms and unauthorized access disputes.
 - Multi-tenant SaaS cloud: add property tenants, user roles, billing, support tools, and cloud-side anchor storage.
 - Intercom/video call: only after the access/audit product is working, because multifamily video workflows are a different competitive set.

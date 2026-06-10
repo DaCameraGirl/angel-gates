@@ -114,6 +114,7 @@ node --check src/app.js
 - `docs/HARDWARE.md` - physical bill of materials and wiring boundary.
 - `docs/PRICING.md` - working pricing model and competitive positioning.
 - `docs/MARKETING.md` - first-property marketing plan, pitch, and proof points.
+- `docs/LPR_PILOT.md` - phase-two rear-plate-aware LPR pilot plan.
 - `docs/COMPETITION.md` - competitive map and positioning against gate-access, access-control, OEM, and installer alternatives.
 - `docs/THREAT_MODEL.md` - security risks, mitigations, and gaps.
 - `docs/CHARGEBACK.md` - incident and damaged-arm evidence workflow.

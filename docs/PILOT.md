@@ -25,7 +25,7 @@ This is the working plan for a first live property pilot. Details here are field
 - Hardware: one edge box at one gate.
 - Credentials: QR and PIN only.
 - Camera evidence: in pilot scope because damaged-arm chargeback is the wedge.
-- LPR: out of pilot scope unless the site demands it after QR/PIN and camera evidence are proven.
+- LPR: out of pilot scope unless the site demands it after QR/PIN and camera evidence are proven. See `docs/LPR_PILOT.md` for the later rear-plate-aware plan.
 - Install path: licensed gate installer or maintenance lead under installer guidance.
 - Existing dial pad remains as fallback.
 - Residents who opt in use QR/PIN flow; everyone else can keep using the old path.
