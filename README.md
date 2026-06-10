@@ -103,6 +103,7 @@ node --check src/app.js
 - `docs/COMMISSIONING.md` - installer-facing commissioning and device identity flow.
 - `docs/ROADMAP.md` - shipped, next, and later work with rationale.
 - `docs/PILOT.md` - first-property pilot plan and success metrics.
+- `docs/FIELD_DISCOVERY.md` - questions for validating gate damage costs, dial-pad cost, and decision authority.
 - `docs/HARDWARE.md` - physical bill of materials and wiring boundary.
 - `docs/PRICING.md` - working pricing model and competitive positioning.
 - `docs/MARKETING.md` - first-property marketing plan, pitch, and proof points.
