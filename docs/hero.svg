@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">Angel Gates barrier-arm access scene</title>
+  <desc id="desc">A gated-property entry lane with a car, reader pedestal, evidence camera, and barrier arm lifting after authorization.</desc>
+  <style>
+    .label { font: 700 24px Arial, sans-serif; fill: #0f172a; }
+    .small { font: 600 15px Arial, sans-serif; fill: #334155; }
+    .tiny { font: 600 12px Arial, sans-serif; fill: #475569; letter-spacing: 0; }
+    .arm { transform-origin: 640px 154px; animation: lift 4s ease-in-out infinite; }
+    .signal { opacity: 0; animation: pulse 4s ease-in-out infinite; }
+    @keyframes lift {
+      0%, 20% { transform: rotate(0deg); }
+      42%, 72% { transform: rotate(-33deg); }
+      92%, 100% { transform: rotate(0deg); }
+    }
+    @keyframes pulse {
+      0%, 28% { opacity: 0; }
+      35%, 70% { opacity: 1; }
+      82%, 100% { opacity: 0; }
+    }
+  </style>
+
+  <rect width="1200" height="420" rx="0" fill="#f8fafc"/>
+  <rect x="0" y="292" width="1200" height="128" fill="#1f2937"/>
+  <path d="M0 302H1200" stroke="#475569" stroke-width="4"/>
+  <path d="M75 356H1125" stroke="#f8fafc" stroke-width="5" stroke-linecap="round" stroke-dasharray="48 42" opacity="0.7"/>
+
+  <rect x="78" y="52" width="260" height="118" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="104" y="97" class="label">Angel Gates</text>
+  <text x="104" y="130" class="small">Access plus evidence</text>
+  <text x="104" y="154" class="tiny">LOCAL EDGE AUTHORIZATION</text>
+
+  <rect x="870" y="82" width="120" height="180" rx="8" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="895" y="112" width="70" height="68" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <rect x="914" y="129" width="32" height="32" rx="4" fill="#0f172a"/>
+  <path d="M919 139h22M919 151h22M929 134v22M940 134v22" stroke="#ffffff" stroke-width="2"/>
+  <text x="891" y="211" class="tiny">QR / PIN</text>
+  <text x="887" y="232" class="tiny">READER</text>
+
+  <rect x="1007" y="98" width="102" height="58" rx="8" fill="#0f172a"/>
+  <circle cx="1038" cy="127" r="17" fill="#38bdf8"/>
+  <circle cx="1038" cy="127" r="8" fill="#0f172a"/>
+  <rect x="1046" y="150" width="28" height="66" fill="#334155"/>
+  <text x="1007" y="238" class="tiny">EVENT CAMERA</text>
+
+  <g class="signal">
+    <path d="M854 151C812 139 779 139 742 151" fill="none" stroke="#22c55e" stroke-width="5" stroke-linecap="round"/>
+    <path d="M848 175C814 166 782 166 748 175" fill="none" stroke="#22c55e" stroke-width="4" stroke-linecap="round"/>
+    <rect x="744" y="82" width="184" height="38" rx="19" fill="#dcfce7" stroke="#22c55e" stroke-width="2"/>
+    <text x="776" y="107" class="tiny" fill="#166534">AUTHORIZED</text>
+  </g>
+
+  <rect x="625" y="152" width="30" height="146" rx="4" fill="#475569"/>
+  <circle cx="640" cy="154" r="22" fill="#0f172a"/>
+  <g class="arm">
+    <rect x="638" y="139" width="386" height="30" rx="5" fill="#ffffff" stroke="#991b1b" stroke-width="3"/>
+    <path d="M692 141v27M758 141v27M824 141v27M890 141v27M956 141v27" stroke="#ef4444" stroke-width="12"/>
+  </g>
+
+  <g transform="translate(264 236)">
+    <path d="M45 72h286c18 0 32-14 32-32v-5c0-17-12-31-29-34L255-14c-19-4-38-6-58-6h-58c-23 0-45 8-63 23L30 41c-12 10-5 31 15 31Z" fill="#2563eb"/>
+    <path d="M91 10h126c20 0 38 5 55 14l31 17H54l37-31Z" fill="#bfdbfe"/>
+    <circle cx="99" cy="78" r="31" fill="#0f172a"/>
+    <circle cx="99" cy="78" r="13" fill="#e2e8f0"/>
+    <circle cx="301" cy="78" r="31" fill="#0f172a"/>
+    <circle cx="301" cy="78" r="13" fill="#e2e8f0"/>
+    <rect x="228" y="54" width="72" height="23" rx="4" fill="#f8fafc"/>
+    <text x="238" y="70" class="tiny">UNIT 14</text>
+  </g>
+
+  <rect x="88" y="318" width="266" height="54" rx="8" fill="#ffffff" opacity="0.95"/>
+  <text x="111" y="342" class="tiny">EDGE DECIDES LOCALLY</text>
+  <text x="111" y="361" class="tiny">EVENT LOG CAPTURES PROOF</text>
+
+  <rect x="844" y="314" width="270" height="58" rx="8" fill="#ffffff" opacity="0.95"/>
+  <text x="866" y="339" class="tiny">MOMENTARY RELAY PULSE</text>
+  <text x="866" y="359" class="tiny">EXISTING OPERATOR STAYS IN CONTROL</text>
+</svg>

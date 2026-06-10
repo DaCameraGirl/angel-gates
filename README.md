@@ -1,6 +1,12 @@
+![Angel Gates barrier-arm access scene](docs/hero.svg)
+
 # Angel Gates
 
-Angel Gates is an edge-first access authorization platform for gated properties.
+Edge-first gate access and chargeback evidence for properties with existing barrier-arm gates.
+
+**Status:** Edge runtime shipped | Commissioning shipped | Rate limiting shipped | Relay driver shipped | Camera capture pending | Pi acceptance test pending
+
+## For Developers
 
 The product spine is the edge box and the event log:
 
