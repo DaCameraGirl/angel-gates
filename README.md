@@ -1,3 +1,7 @@
+## Language Mix
+
+![Repository language mix](docs/language-bar.svg)
+
 ![Angel Gates barrier-arm access scene](docs/hero.svg)
 
 # Angel Gates
@@ -11,10 +15,6 @@ Angel Gates does **not** replace DoorKing, the existing metal call box, the gate
 - Interactive proposal: https://dacameragirl.github.io/angel-gates/proposal.html
 - PDF copy: [Angel_Gates_DoorKing_Proposal.pdf](Angel_Gates_DoorKing_Proposal.pdf)
 - Markdown source: [docs/DOORKING_ADD_ON_PROPOSAL.md](docs/DOORKING_ADD_ON_PROPOSAL.md)
-
-## Language Mix
-
-![Repository language mix](docs/language-bar.svg)
 
 ## What Angel Gates Adds
 
