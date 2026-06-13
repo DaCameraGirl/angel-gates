@@ -3,14 +3,14 @@
   --ink: #1a1f2b;
   --ink-2: #3a4250;
   --muted: #5a6473;
-  --paper: #dfe6f1;
-  --paper-2: #d4ddec;
-  --paper-3: #c6d2e3;
+  --paper: #c9d6ea;
+  --paper-2: #bccce2;
+  --paper-3: #abc0db;
   --navy: #1e3a5f;
   --navy-2: #16293f;
   --navy-ink: #112236;
-  --gold: #c98a00;
-  --gold-bright: #f0b429;
+  --brand: #245d9c;
+  --brand-soft: #9fc0e8;
   --line: #e6e8ec;
   --line-strong: #cdd3db;
   --green: #1f7a4d;
@@ -30,11 +30,7 @@
 
 html {
   min-height: 100%;
-  background:
-    linear-gradient(90deg, rgba(26, 31, 43, 0.035) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(26, 31, 43, 0.035) 1px, transparent 1px),
-    var(--paper);
-  background-size: 30px 30px;
+  background: var(--paper);
   scroll-behavior: smooth;
 }
 
@@ -107,7 +103,7 @@ li::before {
   top: 0.72em;
   width: 8px;
   height: 8px;
-  background: var(--gold-bright);
+  background: var(--navy);
   content: "";
 }
 
@@ -145,8 +141,8 @@ li::before {
   height: 48px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  background: var(--gold-bright);
-  color: var(--navy-ink);
+  background: var(--white);
+  color: var(--navy);
   font-family: var(--display);
   font-weight: 900;
 }
@@ -193,9 +189,9 @@ li::before {
 }
 
 .nav-links a:hover {
-  border-color: var(--gold-bright);
-  background: var(--gold-bright);
-  color: var(--navy-ink);
+  border-color: var(--white);
+  background: var(--white);
+  color: var(--navy);
 }
 
 .hero-copy {
@@ -207,7 +203,11 @@ li::before {
 
 .eyebrow {
   margin-bottom: 10px;
-  color: var(--gold-bright);
+  color: var(--brand);
+}
+
+.hero-copy .eyebrow {
+  color: var(--brand-soft);
 }
 
 .hero-lede {
@@ -238,13 +238,13 @@ li::before {
 }
 
 .primary-action {
-  background: var(--gold-bright);
-  color: var(--navy-ink);
+  background: var(--white);
+  color: var(--navy);
 }
 
 .primary-action:hover {
   transform: translateY(-2px);
-  background: #ffc24d;
+  background: #e8eef6;
 }
 
 .secondary-action {
@@ -278,7 +278,7 @@ li::before {
 
 .hero-proof span {
   display: block;
-  color: var(--gold-bright);
+  color: var(--brand-soft);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 800;
@@ -309,11 +309,7 @@ li::before {
 main {
   position: relative;
   overflow: hidden;
-  background:
-    linear-gradient(90deg, rgba(26, 31, 43, 0.02) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(26, 31, 43, 0.02) 1px, transparent 1px),
-    var(--paper);
-  background-size: 30px 30px, 30px 30px, auto;
+  background: var(--paper);
 }
 
 .section {
@@ -335,7 +331,7 @@ main {
 .pilot-card .eyebrow,
 .pricing-card .eyebrow,
 .ask-section .eyebrow {
-  color: var(--gold);
+  color: var(--brand);
 }
 
 .share-card {
@@ -344,7 +340,7 @@ main {
   gap: clamp(24px, 5vw, 52px);
   align-items: center;
   border: 1px solid var(--line);
-  border-left: 6px solid var(--gold);
+  border-left: 6px solid var(--brand);
   background: var(--paper-2);
   padding: clamp(24px, 4vw, 40px);
 }
@@ -390,7 +386,7 @@ main {
   font-weight: 800;
   color: var(--navy);
   text-decoration: none;
-  border-bottom: 2px solid var(--gold);
+  border-bottom: 2px solid var(--brand);
   padding-bottom: 2px;
   word-break: break-all;
 }
@@ -398,7 +394,7 @@ main {
 .summary-copy {
   display: grid;
   gap: 18px;
-  border-left: 5px solid var(--gold);
+  border-left: 5px solid var(--brand);
   padding-left: clamp(20px, 3vw, 36px);
 }
 
@@ -434,7 +430,7 @@ main {
 }
 
 .problem-band .section-head .eyebrow {
-  color: var(--gold);
+  color: var(--brand);
 }
 
 .problem-list {
@@ -462,7 +458,7 @@ main {
 .panel-label {
   display: inline-block;
   margin-bottom: 18px;
-  color: var(--gold);
+  color: var(--brand);
 }
 
 .problem-list h3,
@@ -693,6 +689,12 @@ main {
   margin-left: auto;
 }
 
+.workflow-section .section-head {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+}
+
 .workflow-track {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -831,7 +833,7 @@ dd {
 }
 
 .install-columns article {
-  border-left: 6px solid var(--gold);
+  border-left: 6px solid var(--brand);
   padding: 24px;
   background: var(--paper-2);
 }
@@ -863,7 +865,7 @@ dd {
 }
 
 .pilot-card .eyebrow {
-  color: var(--gold-bright);
+  color: var(--brand-soft);
 }
 
 .pilot-card ul {
@@ -873,13 +875,13 @@ dd {
 }
 
 .pilot-card li::before {
-  background: var(--gold-bright);
+  background: var(--brand-soft);
 }
 
 .pricing-card {
   border: 2px solid var(--navy);
-  background: var(--gold-bright);
-  color: var(--navy-ink);
+  background: var(--white);
+  color: var(--navy);
 }
 
 .pricing-card .eyebrow {
@@ -914,7 +916,7 @@ dd {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 13px 22px;
-  border-top: 4px solid var(--gold);
+  border-top: 4px solid var(--brand);
   padding-top: 20px;
 }
 
