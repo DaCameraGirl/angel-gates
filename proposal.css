@@ -660,6 +660,8 @@ main {
 }
 
 .flip-back {
+  justify-content: flex-start;
+  gap: 16px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 42%),
     var(--accent);
