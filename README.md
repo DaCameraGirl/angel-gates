@@ -1,5 +1,3 @@
-## Language Mix
-
 ![Repository language mix](docs/language-bar.svg)
 
 ![Angel Gates barrier-arm access scene](docs/hero.svg)
