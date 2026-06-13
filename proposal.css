@@ -580,12 +580,14 @@ main {
   position: relative;
   min-height: 430px;
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
   transition: transform 620ms cubic-bezier(0.2, 0.82, 0.2, 1);
 }
 
 .flip-card:hover .flip-card-inner,
 .flip-card:focus .flip-card-inner {
   transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
 }
 
 .flip-card:focus {
@@ -604,7 +606,13 @@ main {
   padding: 24px;
   overflow: hidden;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   box-shadow: 0 16px 44px rgba(26, 31, 43, 0.12);
+}
+
+.flip-front {
+  transform: rotateY(0deg);
+  -webkit-transform: rotateY(0deg);
 }
 
 .flip-front {
@@ -630,6 +638,7 @@ main {
     var(--accent);
   color: var(--back-ink);
   transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
 }
 
 .flip-front .panel-label {
