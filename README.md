@@ -1,18 +1,24 @@
-![Repository language mix](docs/language-bar.svg)
-
 ![Angel Gates barrier-arm access scene](docs/hero.svg)
 
 # Angel Gates
 
 Premium gate-access and incident-evidence layer for properties with existing barrier-arm gates.
 
-Angel Gates does **not** replace DoorKing, the existing metal call box, the gate operator, or gate safety equipment. It runs beside the current setup as a value-add asset: faster visitor access, timestamped gate events, existing-camera evidence, and property-manager incident delivery.
+Angel Gates does **not** replace DoorKing, the existing metal call box, the gate operator, or gate safety equipment. It runs beside the current setup as a value-add asset: faster visitor access, timestamped gate events, existing-camera evidence, and property-manager incident delivery — and it keeps working even when the internet is down.
 
 ## Proposal
 
-- Interactive proposal: https://dacameragirl.github.io/angel-gates/proposal.html
-- PDF copy: [Angel_Gates_DoorKing_Proposal.pdf](Angel_Gates_DoorKing_Proposal.pdf)
-- Markdown source: [docs/DOORKING_ADD_ON_PROPOSAL.md](docs/DOORKING_ADD_ON_PROPOSAL.md)
+- **Interactive proposal:** https://dacameragirl.github.io/angel-gates/proposal.html
+- **PDF copy:** [Angel_Gates_DoorKing_Proposal.pdf](Angel_Gates_DoorKing_Proposal.pdf)
+- **Markdown source:** [docs/DOORKING_ADD_ON_PROPOSAL.md](docs/DOORKING_ADD_ON_PROPOSAL.md)
+
+The proposal page is built to be shared: it carries a QR code that opens the live page, so a property owner can scan it straight from a printout or a forwarded copy.
+
+## Why It's Different
+
+- **Edge-first.** Authorization happens locally on the gate's edge controller, so the gate keeps working through internet or cloud outages. Events queue and sync automatically when the connection returns.
+- **Hardware-agnostic retrofit.** Lands beside DoorKing on the existing open-command input — no rip-and-replace and no gate safety modification.
+- **Evidence, not just access.** Every gate event is timestamped and can be tied to existing camera footage for incident review and chargebacks.
 
 ## What Angel Gates Adds
 
@@ -20,6 +26,7 @@ Angel Gates does **not** replace DoorKing, the existing metal call box, the gate
 - Time-limited guest, delivery, vendor, contractor, and family passes.
 - Faster gate flow compared with the old call-box/keypad routine.
 - Reduced shared-code abuse by tying passes to a sponsor and expiration time.
+- Local authorization that keeps working without internet; events queue and sync on reconnect.
 - Timestamped access events.
 - Existing camera/NVR evidence when the property camera system is accessible.
 - Property-manager incident emails for gate damage, denied access, possible unauthorized entry, and camera-review windows.
@@ -46,6 +53,7 @@ Angel Gates helps properties answer:
 - Was this a resident, visitor, vendor, or expired pass?
 - Did someone try to follow another car in?
 - What did the existing camera see at that timestamp?
+- Does the gate still work if the internet or cloud goes down?
 - Can the manager send an incident record instead of manually scrubbing video?
 - Is there enough evidence to charge back gate-arm damage?
 
@@ -55,6 +63,7 @@ Angel Gates helps properties answer:
 - Existing DoorKing setup remains in place.
 - QR/PIN access for selected residents, visitors, vendors, and managers.
 - Existing camera/NVR used as the evidence source if accessible.
+- Local edge authorization keeps the gate working without internet.
 - Incident email alerts to the property manager.
 - Event review and basic incident export.
 - No DoorKing replacement.
@@ -112,6 +121,7 @@ node --check src/app.js
 
 - `proposal.html` - public proposal page.
 - `proposal.css` - proposal page styling and print/PDF fallback rules.
+- `qr-proposal.svg` - QR code that opens the live proposal page.
 - `Angel_Gates_DoorKing_Proposal.pdf` - email-friendly proposal copy.
 - `index.html` - local dashboard shell.
 - `styles.css` - dashboard UI styling.
