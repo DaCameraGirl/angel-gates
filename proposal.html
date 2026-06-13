@@ -83,7 +83,6 @@
 
       <section class="section intro-grid" aria-labelledby="proposal-summary">
         <div>
-          <p class="eyebrow">The simple pitch</p>
           <h2 id="proposal-summary">A cleaner gate experience with better accountability.</h2>
         </div>
         <div class="summary-copy">
@@ -98,6 +97,33 @@
             footage and delivered to the property manager for review.
           </p>
         </div>
+      </section>
+
+      <section class="section delivery-strip" aria-labelledby="delivery-title">
+        <div class="section-head">
+          <p class="eyebrow">Who shows up at the gate</p>
+          <h2 id="delivery-title">Built for the daily delivery rush.</h2>
+        </div>
+        <p class="delivery-lede">
+          A modern community gets a constant stream of drivers and visitors who need in once, on time,
+          without a permanent code that never goes away. Angel Gates issues a time-limited pass for any of them:
+        </p>
+        <ul class="delivery-tags" aria-label="Delivery and visitor types">
+          <li>Amazon</li>
+          <li>FedEx</li>
+          <li>UPS</li>
+          <li>USPS / mail</li>
+          <li>DoorDash</li>
+          <li>Uber Eats</li>
+          <li>Grubhub</li>
+          <li>Walmart delivery</li>
+          <li>Instacart</li>
+          <li>Pizza delivery</li>
+          <li>Rideshare pickups</li>
+          <li>Cleaners</li>
+          <li>Contractors</li>
+          <li>Guests &amp; family</li>
+        </ul>
       </section>
 
       <section class="section problem-band" aria-labelledby="problem-title">
@@ -256,32 +282,32 @@
           <article>
             <span>1</span>
             <h3>Create</h3>
-            <p>Resident or manager creates a pass for a guest, vendor, delivery, or contractor.</p>
+            <p>A resident or manager creates a pass in seconds for a specific guest, vendor, delivery, or contractor &mdash; no permanent gate code handed out, and no call to the office.</p>
           </article>
           <article>
             <span>2</span>
             <h3>Limit</h3>
-            <p>The pass gets a gate, sponsor, start time, expiration time, and QR/PIN credential.</p>
+            <p>Each pass is locked to one gate and sponsor with an exact start time, expiration, and optional use limit, issued as a signed QR code or PIN that cannot be forged or quietly shared.</p>
           </article>
           <article>
             <span>3</span>
             <h3>Send</h3>
-            <p>The visitor receives the pass before arriving at the gate.</p>
+            <p>The visitor gets the pass on their phone before they arrive &mdash; no app to download, and no hunting the resident directory at the call box.</p>
           </article>
           <article>
             <span>4</span>
             <h3>Scan</h3>
-            <p>The visitor scans QR or enters PIN at the Angel Gates reader.</p>
+            <p>At the gate the visitor scans the QR or types the PIN at the Angel Gates reader &mdash; a small scanner and keypad mounted at car-window height, beside (not replacing) the old DoorKing box.</p>
           </article>
           <article>
             <span>5</span>
             <h3>Open</h3>
-            <p>Angel Gates validates locally and sends the open command &mdash; it works even with no internet &mdash; then logs the event.</p>
+            <p>The Angel Gates edge controller (the hidden Pi brain in the cabinet) verifies the pass locally in under a second and pulses the gate open. It works even with no internet, and a wrong, expired, or revoked pass is denied and logged.</p>
           </article>
           <article>
             <span>6</span>
             <h3>Review</h3>
-            <p>If there is an incident, the manager can match pass, sponsor, time, and camera footage.</p>
+            <p>Every attempt &mdash; allowed or denied &mdash; is written to a tamper-evident log with timestamp, credential, and sponsor, so any incident ties back to the exact gate event and camera clip.</p>
           </article>
         </div>
       </section>

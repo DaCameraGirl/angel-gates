@@ -404,6 +404,37 @@ main {
   line-height: 1.36;
 }
 
+.delivery-lede {
+  max-width: 760px;
+  margin: 0 0 26px;
+  color: var(--ink-2);
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.45;
+}
+
+.delivery-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.delivery-tags li {
+  padding: 11px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  background: var(--white);
+  color: var(--navy);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.delivery-tags li::before {
+  display: none;
+}
+
 .problem-band {
   width: 100%;
   max-width: none;
@@ -889,7 +920,8 @@ dd {
 }
 
 .pricing-card h2 {
-  font-size: clamp(50px, 7vw, 80px);
+  font-size: clamp(40px, 5.2vw, 76px);
+  overflow-wrap: break-word;
 }
 
 .pricing-card p {
@@ -934,7 +966,8 @@ dd {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .install-columns {
+  .install-columns,
+  .pilot-pricing {
     grid-template-columns: 1fr;
   }
 
