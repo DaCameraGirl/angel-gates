@@ -922,8 +922,9 @@ dd {
 }
 
 .pricing-card h2 {
-  font-size: clamp(40px, 5.2vw, 76px);
-  overflow-wrap: break-word;
+  font-size: clamp(32px, 4vw, 56px);
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .pricing-card p {
