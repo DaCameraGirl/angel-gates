@@ -1220,3 +1220,20 @@ dd {
 .install-section .section-head .eyebrow {
   justify-self: center;
 }
+
+/* Center the problem title */
+#problem-title {
+  text-align: center;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.problem-band .section-head {
+  grid-template-columns: 1fr;
+  text-align: center;
+}
+
+.problem-band .section-head .eyebrow {
+  justify-self: center;
+}
