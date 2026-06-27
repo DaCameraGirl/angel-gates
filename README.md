@@ -43,7 +43,7 @@ Premium gate-access and incident-evidence layer for properties with existing bar
 Angel Gates does **not** replace DoorKing, the existing metal call box, the gate operator, or gate safety equipment. It runs beside the current setup as a value-add asset: faster visitor access, timestamped gate events, existing-camera evidence, and property-manager incident delivery — and it keeps working even when the internet is down.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=Proposal&fontSize=22&fontColor=e6edf3" width="720" alt="Proposal" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=Proposal&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="Proposal" /></p>
 
 
 - **Interactive proposal:** https://dacameragirl.github.io/angel-gates/proposal.html
@@ -53,7 +53,7 @@ Angel Gates does **not** replace DoorKing, the existing metal call box, the gate
 The proposal page is built to be shared: it carries a QR code that opens the live page, so a property owner can scan it straight from a printout or a forwarded copy.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=Why%20It's%20Different&fontSize=22&fontColor=e6edf3" width="720" alt="Why It's Different" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=Why%20It's%20Different&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="Why It's Different" /></p>
 
 
 - **Edge-first.** Authorization happens locally on the gate's edge controller, so the gate keeps working through internet or cloud outages. Events queue and sync automatically when the connection returns.
@@ -61,7 +61,7 @@ The proposal page is built to be shared: it carries a QR code that opens the liv
 - **Evidence, not just access.** Every gate event is timestamped and can be tied to existing camera footage for incident review and chargebacks.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=What%20Angel%20Gates%20Adds&fontSize=22&fontColor=e6edf3" width="720" alt="What Angel Gates Adds" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=What%20Angel%20Gates%20Adds&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="What Angel Gates Adds" /></p>
 
 
 - Resident and visitor QR/PIN access.
@@ -75,7 +75,7 @@ The proposal page is built to be shared: it carries a QR code that opens the liv
 - Evidence packets for chargebacks, resident notices, vendor disputes, insurance, or board review.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=DoorKing%20Positioning&fontSize=22&fontColor=e6edf3" width="720" alt="DoorKing Positioning" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=DoorKing%20Positioning&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="DoorKing Positioning" /></p>
 
 
 The current DoorKing setup remains the foundation.
@@ -88,7 +88,7 @@ Angel Gates is the add-on layer beside it:
 - The system sends only an authorized momentary open command after a local allow decision.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=Why%20Properties%20Want%20It&fontSize=22&fontColor=e6edf3" width="720" alt="Why Properties Want It" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=Why%20Properties%20Want%20It&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="Why Properties Want It" /></p>
 
 
 The old metal call box can stay, but it should not be the only visitor workflow.
@@ -104,7 +104,7 @@ Angel Gates helps properties answer:
 - Is there enough evidence to charge back gate-arm damage?
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=90-Day%20Pilot%20Shape&fontSize=22&fontColor=e6edf3" width="720" alt="90-Day Pilot Shape" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=90-Day%20Pilot%20Shape&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="90-Day Pilot Shape" /></p>
 
 
 - One gate.
@@ -118,7 +118,7 @@ Angel Gates helps properties answer:
 - No gate safety modification.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=Current%20Build%20Status&fontSize=22&fontColor=e6edf3" width="720" alt="Current Build Status" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=Current%20Build%20Status&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="Current Build Status" /></p>
 
 
 Shipped in this repo:
@@ -141,7 +141,7 @@ Shipped in this repo:
 - Raspberry Pi first-boot package with systemd services.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=Safety%20Boundary&fontSize=22&fontColor=e6edf3" width="720" alt="Safety Boundary" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=Safety%20Boundary&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="Safety Boundary" /></p>
 
 
 Angel Gates is an authorization and evidence layer, equivalent to adding a keypad or reader controller.
@@ -153,7 +153,7 @@ Installation must be performed by a qualified gate/access installer.
 This repository is not a certification claim, legal opinion, installer manual, or hardware safety approval.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=Developer%20Notes&fontSize=22&fontColor=e6edf3" width="720" alt="Developer Notes" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=Developer%20Notes&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="Developer Notes" /></p>
 
 
 Open `index.html` in a browser for the local dashboard shell. The app uses browser local storage and has no package dependencies.
@@ -172,7 +172,7 @@ node --check src/app.js
 ```
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=Project%20Map&fontSize=22&fontColor=e6edf3" width="720" alt="Project Map" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=Project%20Map&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="Project Map" /></p>
 
 
 - `proposal.html` - public proposal page.
@@ -195,7 +195,7 @@ node --check src/app.js
 - `docs/SAFETY_BOUNDARY.md` - UL 294 / UL 325 boundary language.
 
 <p align="center"><img src="docs/readme-divider.svg" width="720" alt="" /></p>
-<p align="center"><img src="https://capsule-render.vercel.app/api?type=rect&color=070b14&height=50&section=header&text=Data%20Policy&fontSize=22&fontColor=e6edf3" width="720" alt="Data Policy" /></p>
+<p align="center"><img src="https://capsule-render.vercel.app/api?type=waving&color=0:070b14,100:12102a&height=50&section=header&text=Data%20Policy&fontSize=22&fontColor=e6edf3&animation=twinkling" width="720" alt="Data Policy" /></p>
 
 
 The dashboard stores only records entered through the browser UI or imported from a workspace JSON file. Clearing browser storage or using the in-app clear action removes local records from that browser.
